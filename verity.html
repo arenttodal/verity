@@ -463,105 +463,73 @@ header {
 <div class="scroll-fade"></div>
 
 <script>
-// ─────────────────────────────────────────────────────────────
-//  CONFIG — update BACKEND_URL when you deploy
-// ─────────────────────────────────────────────────────────────
-const BACKEND_URL  = 'https://verity-production-a7d1.up.railway.app';
-const OPENALEX_URL = 'https://api.openalex.org';
-const PAPER_COUNT  = 15;   // Papers to fetch from OpenAlex
-const YEAR_FROM    = new Date().getFullYear() - 5;
+// ─────────────────────────────────────────────
+//  Frontend is now dumb — backend does everything
+//  One call to /api/search handles:
+//    1. Claude query intelligence
+//    2. OpenAlex paper fetching
+//    3. Claude paper analysis
+// ─────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────
-//  OPENALEX — reconstruct abstract from inverted index
-// ─────────────────────────────────────────────────────────────
-function reconstructAbstract(invertedIndex) {
-  if (!invertedIndex || typeof invertedIndex !== 'object') return '';
-  const positions = [];
-  for (const [word, locs] of Object.entries(invertedIndex)) {
-    for (const pos of locs) { positions[pos] = word; }
+async function runSearch() {
+  const query = document.getElementById('searchInput').value.trim();
+  if (!query) return;
+
+  document.getElementById('hero').classList.add('compact');
+  document.getElementById('results').style.display     = 'none';
+  document.getElementById('error-state').style.display = 'none';
+  setLoading(true, 'Understanding your query…');
+
+  try {
+    // Single call — backend handles everything
+    const res = await fetch('/api/search', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ query })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Error ${res.status}`);
+    }
+
+    setLoading(true, 'Analysing papers…');
+    const { queryMeta, papers, analysis } = await res.json();
+
+    setLoading(false);
+    renderResults(queryMeta.plain || query, papers, analysis);
+
+  } catch (err) {
+    console.error(err);
+    showError(err.message || 'Something went wrong. Is the server running?');
   }
-  return positions.filter(Boolean).join(' ').trim();
 }
 
-// ─────────────────────────────────────────────────────────────
-//  FETCH PAPERS from OpenAlex
-// ─────────────────────────────────────────────────────────────
-async function fetchPapers(query) {
-  const params = new URLSearchParams({
-    search:     query,
-    filter:     `publication_year:${YEAR_FROM}-${new Date().getFullYear()},has_abstract:true`,
-    sort:       'cited_by_count:desc',
-    'per-page': String(PAPER_COUNT),
-    select:     'id,title,abstract_inverted_index,publication_year,primary_location,cited_by_count,doi',
-    mailto:     'hello@verity.science'   // good practice per OpenAlex docs
-  });
-
-  const res  = await fetch(`${OPENALEX_URL}/works?${params}`);
-  if (!res.ok) throw new Error(`OpenAlex ${res.status}`);
-  const data = await res.json();
-
-  return (data.results || []).map(w => ({
-    title:     w.title || 'Untitled',
-    abstract:  reconstructAbstract(w.abstract_inverted_index),
-    year:      w.publication_year || '—',
-    journal:   w.primary_location?.source?.display_name || 'Unknown Journal',
-    citations: w.cited_by_count  || 0,
-    doi:       w.doi ? w.doi.replace('https://doi.org/', '') : null,
-    id:        w.id
-  })).filter(p => p.abstract.length > 80); // drop papers with tiny/empty abstracts
-}
-
-// ─────────────────────────────────────────────────────────────
-//  CALL BACKEND → Claude analysis
-// ─────────────────────────────────────────────────────────────
-async function analyzeWithClaude(query, papers) {
-  const res = await fetch(`${BACKEND_URL}/api/analyze`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ query, papers })
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `Backend ${res.status}`);
-  }
-  return res.json();
-}
-
-// ─────────────────────────────────────────────────────────────
-//  RENDER
-// ─────────────────────────────────────────────────────────────
 function renderResults(query, papers, analysis) {
-  // Query row
-  document.getElementById('qterm').textContent      = query;
+  document.getElementById('qterm').textContent       = query;
   document.getElementById('stat-papers').textContent = papers.length;
 
-  // Consensus block
   const d = analysis.debate || {};
   document.getElementById('c-ln').textContent = d.leftLabel  || '—';
   document.getElementById('c-ld').textContent = d.leftDesc   || '';
   document.getElementById('c-rn').textContent = d.rightLabel || '—';
   document.getElementById('c-rd').textContent = d.rightDesc  || '';
-  document.getElementById('c-lp').textContent = (d.leftPct  ?? '—') + (d.leftPct  != null ? '%' : '');
-  document.getElementById('c-rp').textContent = (d.rightPct ?? '—') + (d.rightPct != null ? '%' : '');
+  document.getElementById('c-lp').textContent = d.leftPct  != null ? d.leftPct  + '%' : '—';
+  document.getElementById('c-rp').textContent = d.rightPct != null ? d.rightPct + '%' : '—';
 
-  // AI summary
-  document.getElementById('ai-text').innerHTML = analysis.summary || '—';
+  document.getElementById('ai-text').innerHTML        = analysis.summary || '—';
+  document.getElementById('div-lbl').textContent      = papers.length + ' Referenced Studies';
 
-  // Build a stance map keyed by doi
+  // Build stance map
   const stanceMap = {};
   (analysis.stances || []).forEach(s => { stanceMap[s.doi] = s.stance; });
 
-  // Papers
   const grid = document.getElementById('papers');
   grid.innerHTML = '';
-  document.getElementById('div-lbl').textContent = `${papers.length} Referenced Studies`;
-
-  papers.forEach(p => {
-    const doiKey = p.doi || `paper-${papers.indexOf(p) + 1}`;
-    const stance = stanceMap[doiKey] || stanceMap[p.doi] || 'mixed';
+  papers.forEach((p, i) => {
+    const stance = stanceMap[p.doi] || stanceMap[`paper-${i+1}`] || 'mixed';
     const label  = { for: '↑ Supports', against: '↓ Raises concerns', mixed: '↔ Mixed findings' }[stance] || '↔ Mixed';
-
-    const el = document.createElement('div');
+    const el     = document.createElement('div');
     el.className = `card ${stance}`;
     el.innerHTML = `
       <div class="card-top">
@@ -573,7 +541,7 @@ function renderResults(query, papers, analysis) {
         <div class="card-meta">
           <span>${escHtml(p.journal)}</span>
           <span>${p.year}</span>
-          <span>${p.citations.toLocaleString()} citations</span>
+          <span>${(p.citations||0).toLocaleString()} citations</span>
         </div>
         ${p.doi
           ? `<a class="doi" href="https://doi.org/${escHtml(p.doi)}" target="_blank" rel="noopener">↗ ${escHtml(p.doi)}</a>`
@@ -582,66 +550,21 @@ function renderResults(query, papers, analysis) {
     grid.appendChild(el);
   });
 
-  // Show results
   document.getElementById('results').style.display = 'block';
-
-  // Animate meter after paint
   setTimeout(() => {
     document.getElementById('c-cursor').style.left = (d.rightPct ?? 50) + '%';
   }, 300);
 }
 
-// ─────────────────────────────────────────────────────────────
-//  MAIN FLOW
-// ─────────────────────────────────────────────────────────────
-async function runSearch() {
-  const query = document.getElementById('searchInput').value.trim();
-  if (!query) return;
-
-  setLoading(true, 'Searching publications…');
-  document.getElementById('hero').classList.add('compact');
-  document.getElementById('results').style.display    = 'none';
-  document.getElementById('error-state').style.display = 'none';
-
-  try {
-    // Step 1: fetch papers
-    const papers = await fetchPapers(query);
-
-    if (papers.length === 0) {
-      showError('No papers found for that query. Try a broader search term.');
-      return;
-    }
-
-    // Step 2: Claude analysis
-    setLabel('Analysing ' + papers.length + ' papers…');
-    const analysis = await analyzeWithClaude(query, papers);
-
-    // Step 3: render
-    setLoading(false);
-    renderResults(query, papers, analysis);
-
-  } catch (err) {
-    console.error(err);
-    showError(err.message || 'Unexpected error. Is the backend running?');
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-//  UI HELPERS
-// ─────────────────────────────────────────────────────────────
 function setLoading(on, label) {
-  document.getElementById('loading').style.display = on ? 'flex' : 'none';
-  document.getElementById('searchBtn').disabled = on;
-  if (label) setLabel(label);
-}
-
-function setLabel(txt) {
-  document.getElementById('loadLabel').textContent = txt;
+  document.getElementById('loading').style.display    = on ? 'flex' : 'none';
+  document.getElementById('searchBtn').disabled       = on;
+  if (label) document.getElementById('loadLabel').textContent = label;
 }
 
 function showError(msg) {
   setLoading(false);
-  document.getElementById('errMsg').textContent = msg;
+  document.getElementById('errMsg').textContent        = msg;
   document.getElementById('error-state').style.display = 'flex';
 }
 
@@ -658,10 +581,8 @@ function fillSearch(t) {
 
 function escHtml(str) {
   return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 document.getElementById('searchInput').addEventListener('keydown', e => {
