@@ -205,7 +205,32 @@ leftPct + rightPct MUST equal 100. Calibrate based on actual paper content, not 
 }
 
 // ─────────────────────────────────────────────
-//  MAIN ENDPOINT
+//  ANALYZE ENDPOINT (used by frontend)
+// ─────────────────────────────────────────────
+app.post('/api/analyze', async (req, res) => {
+  const { query, papers } = req.body;
+  if (!query)  return res.status(400).json({ error: 'query is required' });
+  if (!papers || !papers.length) return res.status(400).json({ error: 'papers are required' });
+
+  try {
+    const queryMeta = await optimizeQuery(query);
+    console.log(`Analyze: "${query}" → "${queryMeta.searchString}"`);
+
+    const filtered = await filterRelevantPapers(queryMeta.plain, queryMeta.concepts || [], papers);
+    if (filtered.length < 3) {
+      return res.status(404).json({ error: `Only ${filtered.length} relevant paper(s) found. Try a broader search term.` });
+    }
+
+    const analysis = await analyzePapers(queryMeta.plain, filtered, queryMeta);
+    res.json(analysis);
+  } catch (err) {
+    console.error('Analyze error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+//  SEARCH ENDPOINT (all-in-one)
 // ─────────────────────────────────────────────
 app.post('/api/search', async (req, res) => {
   const { query } = req.body;
