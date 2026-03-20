@@ -15,30 +15,65 @@ app.get('/',       (_, res) => res.sendFile(path.join(__dirname, 'verity.html'))
 app.get('/health', (_, res) => res.json({ ok: true }));
 
 // ─────────────────────────────────────────────
-//  STEP 1 — Claude understands the query
+//  UTILS
+// ─────────────────────────────────────────────
+function reconstructAbstract(idx) {
+  if (!idx || typeof idx !== 'object') return '';
+  const pos = [];
+  for (const [word, locs] of Object.entries(idx)) {
+    for (const l of locs) pos[l] = word;
+  }
+  return pos.filter(Boolean).join(' ').trim();
+}
+
+function stripHtml(str) {
+  return String(str || '').replace(/<[^>]*>/g, '').trim();
+}
+
+// ─────────────────────────────────────────────
+//  STEP 1 — Claude understands & optimizes query
 // ─────────────────────────────────────────────
 async function optimizeQuery(rawQuery) {
   const msg = await anthropic.messages.create({
     model:      'claude-sonnet-4-20250514',
-    max_tokens: 500,
-    system:     'You are a scientific search expert. Respond ONLY with valid JSON, no markdown.',
+    max_tokens: 600,
+    system:     'You are a biomedical librarian and scientific search expert with deep knowledge of PubMed MeSH terms and academic search syntax. Respond ONLY with valid JSON, no markdown.',
     messages:   [{
       role: 'user',
       content: `A user typed this into a science search engine: "${rawQuery}"
 
+Your job is to translate this into a precise academic search string that will return HIGHLY RELEVANT peer-reviewed papers — not tangentially related ones.
+
+Rules for searchString:
+- Use specific medical/scientific terminology (MeSH-style preferred)
+- Include the EXACT phenomenon being studied (e.g. "nausea vomiting pregnancy" not just "pregnancy nausea")
+- Add key synonyms joined with OR where helpful (e.g. "morning sickness OR nausea gravidarum")
+- AVOID overly broad terms that will pull irrelevant results
+- AVOID terms that are only tangentially related
+- Max 15 words
+- Think: what would a medical researcher type into PubMed to find papers on exactly this topic?
+
 Return ONLY this JSON:
 {
-  "searchString": "<optimized PubMed/OpenAlex search string using medical/scientific terminology, boolean operators if helpful, max 12 words>",
-  "isDebatable": <true if science genuinely has two sides on this, false if near-unanimous>,
-  "leftSide":  "<3-4 words: the skeptical/concern/negative position>",
-  "rightSide": "<3-4 words: the supportive/positive/beneficial position>",
-  "plain":     "<the user's query rewritten as a clean question, e.g. 'Does night shift work harm long-term health?'>"
+  "searchString": "<precise academic search string>",
+  "isDebatable": <true if science has genuine two sides, false if near-unanimous consensus>,
+  "leftSide":  "<3-5 words: the skeptical/concern/risk side of this topic>",
+  "rightSide": "<3-5 words: the beneficial/positive/supportive side>",
+  "plain":     "<the user's intent rewritten as a clean specific question, e.g. 'What is the typical onset and duration of nausea during pregnancy?'>",
+  "concepts":  ["<key concept 1>", "<key concept 2>", "<key concept 3>"]
 }
 
-Rules:
-- searchString should use scientific synonyms (e.g. "night shift" → "shift work circadian rhythm")
-- If not debatable (e.g. "does smoking cause cancer"), set isDebatable: false and leftSide: "Overwhelming Evidence", rightSide: "Scientific Consensus"
-- plain should be a clean readable question for display`
+Examples of good vs bad searchStrings:
+- BAD: "pregnancy nausea" (too broad, pulls cannabis papers)
+- GOOD: "nausea vomiting pregnancy NVP morning sickness trimester onset prevalence"
+- BAD: "night shifts health" (too vague)
+- GOOD: "shift work disorder circadian rhythm disruption health outcomes workers"
+- BAD: "red meat cancer" (ambiguous)
+- GOOD: "red meat processed meat colorectal cancer risk epidemiology cohort"
+
+For isDebatable:
+- true: veganism health, red meat cancer, coffee mortality, statins side effects
+- false: smoking cancer, vaccines autism, exercise health benefits, morning sickness prevalence`
     }]
   });
 
@@ -56,7 +91,7 @@ async function fetchPapers(searchString) {
     search:     searchString,
     filter:     `publication_year:${yearFrom}-${new Date().getFullYear()},has_abstract:true`,
     sort:       'relevance_score:desc',
-    'per-page': '15',
+    'per-page': '20',
     select:     'id,title,abstract_inverted_index,publication_year,primary_location,cited_by_count,doi',
     mailto:     'hello@verity.science'
   });
@@ -66,26 +101,56 @@ async function fetchPapers(searchString) {
   const data = await res.json();
 
   return (data.results || []).map(w => ({
-    title:     w.title || 'Untitled',
+    title:     stripHtml(w.title || 'Untitled'),
     abstract:  reconstructAbstract(w.abstract_inverted_index),
     year:      w.publication_year || '—',
-    journal:   w.primary_location?.source?.display_name || 'Unknown Journal',
+    journal:   stripHtml(w.primary_location?.source?.display_name || 'Unknown Journal'),
     citations: w.cited_by_count || 0,
     doi:       w.doi ? w.doi.replace('https://doi.org/', '') : null
   })).filter(p => p.abstract.length > 80);
 }
 
-function reconstructAbstract(idx) {
-  if (!idx || typeof idx !== 'object') return '';
-  const pos = [];
-  for (const [word, locs] of Object.entries(idx)) {
-    for (const l of locs) pos[l] = word;
-  }
-  return pos.filter(Boolean).join(' ').trim();
+// ─────────────────────────────────────────────
+//  STEP 3 — Quick relevance filter
+//  Drop papers that are clearly off-topic before
+//  spending tokens on full analysis
+// ─────────────────────────────────────────────
+async function filterRelevantPapers(plain, concepts, papers) {
+  if (papers.length === 0) return papers;
+
+  const titlesBlock = papers.map((p, i) =>
+    `[${i}] ${p.title}`
+  ).join('\n');
+
+  const msg = await anthropic.messages.create({
+    model:      'claude-sonnet-4-20250514',
+    max_tokens: 300,
+    system:     'You are a relevance filter. Respond ONLY with valid JSON, no markdown.',
+    messages:   [{
+      role: 'user',
+      content: `Topic: "${plain}"
+Key concepts: ${concepts.join(', ')}
+
+These papers were returned by a search engine. Some may be off-topic.
+Return ONLY the indices of papers that are DIRECTLY relevant to the topic (not tangentially related).
+Be generous — keep papers if they study a related mechanism or population. Remove only clearly wrong ones.
+
+Papers:
+${titlesBlock}
+
+Return ONLY: { "keep": [0, 1, 3, ...] }  (array of indices to keep)`
+    }]
+  });
+
+  const raw     = msg.content[0].text.trim();
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  const { keep } = JSON.parse(cleaned);
+
+  return keep.map(i => papers[i]).filter(Boolean);
 }
 
 // ─────────────────────────────────────────────
-//  STEP 3 — Claude analyses the papers
+//  STEP 4 — Claude analyses the papers
 // ─────────────────────────────────────────────
 async function analyzePapers(plain, papers, queryMeta) {
   const papersBlock = papers.map((p, i) => [
@@ -107,18 +172,19 @@ async function analyzePapers(plain, papers, queryMeta) {
 The two sides of this debate are:
 - Concern/skeptical side: "${queryMeta.leftSide}"
 - Supportive/positive side: "${queryMeta.rightSide}"
+- Is this genuinely debated in science? ${queryMeta.isDebatable}
 
 PAPERS:
 ${papersBlock}
 
 Return ONLY this JSON:
 {
-  "summary": "<2-3 paragraph HTML. Use <strong> for key terms. Cite effect sizes and sample sizes. Honest about uncertainty. No bullet points.>",
+  "summary": "<2-3 paragraph HTML. Use <strong> for key terms. Be specific: cite effect sizes, sample sizes, study types. Honest about uncertainty and evidence quality. No bullet points.>",
   "debate": {
     "leftLabel":  "${queryMeta.leftSide}",
-    "leftDesc":   "<8 word description of the concern side>",
+    "leftDesc":   "<8 word description of concern side>",
     "rightLabel": "${queryMeta.rightSide}",
-    "rightDesc":  "<8 word description of the benefit side>",
+    "rightDesc":  "<8 word description of supportive side>",
     "leftPct":    <integer 0-100>,
     "rightPct":   <integer 0-100>,
     "isDebated":  ${queryMeta.isDebatable}
@@ -127,7 +193,7 @@ Return ONLY this JSON:
     { "doi": "<doi or paper-N>", "stance": "<for|against|mixed>" }
   ]
 }
-leftPct + rightPct MUST equal 100. Calibrate carefully based on what the papers actually show.`
+leftPct + rightPct MUST equal 100. Calibrate based on actual paper content, not assumptions.`
     }]
   });
 
@@ -139,23 +205,30 @@ leftPct + rightPct MUST equal 100. Calibrate carefully based on what the papers 
 }
 
 // ─────────────────────────────────────────────
-//  MAIN ENDPOINT — full pipeline
+//  MAIN ENDPOINT
 // ─────────────────────────────────────────────
 app.post('/api/search', async (req, res) => {
   const { query } = req.body;
   if (!query) return res.status(400).json({ error: 'query is required' });
 
   try {
-    // Step 1: understand the query
+    // 1. Understand query
     const queryMeta = await optimizeQuery(query);
+    console.log(`Query: "${query}" → "${queryMeta.searchString}"`);
 
-    // Step 2: fetch papers using smart search string
-    const papers = await fetchPapers(queryMeta.searchString);
-    if (papers.length === 0) {
+    // 2. Fetch papers
+    const rawPapers = await fetchPapers(queryMeta.searchString);
+    if (rawPapers.length === 0) {
       return res.status(404).json({ error: 'No papers found. Try a different search term.' });
     }
 
-    // Step 3: analyse
+    // 3. Filter for relevance
+    const papers = await filterRelevantPapers(queryMeta.plain, queryMeta.concepts || [], rawPapers);
+    if (papers.length < 3) {
+      return res.status(404).json({ error: `Only ${papers.length} relevant paper(s) found on this topic. Try a broader search term.` });
+    }
+
+    // 4. Analyse
     const analysis = await analyzePapers(queryMeta.plain, papers, queryMeta);
 
     res.json({ queryMeta, papers, analysis });
