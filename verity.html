@@ -23,6 +23,7 @@
 }
 
 html, body { min-height: 100%; background: var(--bg); overscroll-behavior: none; }
+html { zoom: 1.1; }
 body { font-family: 'Instrument Sans', sans-serif; color: var(--text-primary); min-height: 100vh; overflow-x: hidden; position: relative; }
 
 body::after {
@@ -532,22 +533,104 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
 }
 .pill:hover { color: rgba(255,255,255,0.5); border-color: rgba(255,255,255,0.13); background: rgba(255,255,255,0.025); }
 
-/* ── LOADING ── */
+/* ── LOADING SEQUENCE ── */
 .loading-state {
-  display: none; flex-direction: column; align-items: center; gap: 17px; padding: 80px 0;
+  display: none; flex-direction: column; align-items: center;
+  padding: clamp(50px, 10vw, 90px) 0 40px;
+  min-height: 320px; gap: 0;
 }
-.loading-dots { display: flex; gap: 6px; }
-.loading-dot {
-  width: 4px; height: 4px; border-radius: 50%; background: rgba(255,255,255,0.18);
-  animation: ldp 1.5s ease-in-out infinite;
+
+/* Steps list */
+.ls-steps {
+  display: flex; flex-direction: column; gap: 0;
+  margin-bottom: 44px; width: 100%; max-width: 320px;
 }
-.loading-dot:nth-child(2) { animation-delay: .22s; }
-.loading-dot:nth-child(3) { animation-delay: .44s; }
-@keyframes ldp { 0%,80%,100%{transform:scale(.6);opacity:.22} 40%{transform:scale(1);opacity:.88} }
-.loading-label {
-  font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.18em;
-  color: var(--text-muted); text-transform: uppercase; transition: opacity 0.3s;
+
+.ls-step {
+  display: flex; align-items: center; gap: 12px;
+  padding: 7px 0;
+  opacity: 0.18;
+  transition: opacity 0.5s ease;
 }
+
+.ls-step.active  { opacity: 1; }
+.ls-step.done    { opacity: 0.38; }
+
+.ls-step-icon {
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(255,255,255,0.12);
+  font-size: 9px; color: rgba(255,255,255,0.25);
+  position: relative;
+}
+
+/* Active: pulsing ring */
+.ls-step.active .ls-step-icon {
+  border-color: rgba(255,255,255,0.35);
+  color: rgba(255,255,255,0.7);
+}
+.ls-step.active .ls-step-icon::after {
+  content: '';
+  position: absolute; inset: -4px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.12);
+  animation: stepPulse 1.6s ease-in-out infinite;
+}
+
+/* Done: check */
+.ls-step.done .ls-step-icon {
+  border-color: rgba(100,200,130,0.35);
+  color: rgba(100,200,130,0.7);
+  background: rgba(100,200,130,0.04);
+}
+
+@keyframes stepPulse {
+  0%, 100% { transform: scale(1);   opacity: 0.3; }
+  50%       { transform: scale(1.5); opacity: 0; }
+}
+
+.ls-step-text {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px; letter-spacing: 0.13em; text-transform: uppercase;
+  color: rgba(255,255,255,0.25);
+}
+.ls-step.active  .ls-step-text { color: rgba(255,255,255,0.65); }
+.ls-step.done    .ls-step-text { color: rgba(255,255,255,0.25); }
+
+.ls-step-count {
+  font-family: 'DM Mono', monospace;
+  font-size: 8px; letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.18); margin-left: auto;
+}
+.ls-step.active .ls-step-count { color: rgba(255,255,255,0.35); }
+
+/* Fact card */
+.ls-fact {
+  max-width: 340px; text-align: center;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  padding-top: 28px;
+  opacity: 0; animation: factFade 0.7s ease 0.3s forwards;
+}
+
+@keyframes factFade {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.ls-fact-label {
+  font-family: 'DM Mono', monospace; font-size: 7.5px;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: rgba(255,255,255,0.18); margin-bottom: 10px;
+}
+
+.ls-fact-text {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(15px, 3vw, 18px); font-weight: 300;
+  line-height: 1.55; color: rgba(255,255,255,0.38);
+  font-style: italic;
+  transition: opacity 0.5s ease;
+}
+
+.ls-fact-text.fading { opacity: 0; }
 
 /* ── ERROR STATE ── */
 .error-state {
@@ -608,12 +691,42 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
     </div>
   </section>
 
-  <!-- LOADING -->
+  <!-- LOADING SEQUENCE -->
   <div class="loading-state" id="loadingState">
-    <div class="loading-dots">
-      <div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div>
+
+    <div class="ls-steps" id="lsSteps">
+      <div class="ls-step" id="lstep-0">
+        <div class="ls-step-icon">◈</div>
+        <div class="ls-step-text">Reading your question</div>
+      </div>
+      <div class="ls-step" id="lstep-1">
+        <div class="ls-step-icon">◈</div>
+        <div class="ls-step-text">Searching publications</div>
+        <div class="ls-step-count" id="lstep-1-count"></div>
+      </div>
+      <div class="ls-step" id="lstep-2">
+        <div class="ls-step-icon">◈</div>
+        <div class="ls-step-text">Filtering for relevance</div>
+      </div>
+      <div class="ls-step" id="lstep-3">
+        <div class="ls-step-icon">◈</div>
+        <div class="ls-step-text">Extracting evidence</div>
+      </div>
+      <div class="ls-step" id="lstep-4">
+        <div class="ls-step-icon">◈</div>
+        <div class="ls-step-text">Scanning news coverage</div>
+      </div>
+      <div class="ls-step" id="lstep-5">
+        <div class="ls-step-icon">◈</div>
+        <div class="ls-step-text">Computing consensus</div>
+      </div>
     </div>
-    <div class="loading-label" id="loadLabel">Searching publications…</div>
+
+    <div class="ls-fact">
+      <div class="ls-fact-label">While you wait</div>
+      <div class="ls-fact-text" id="lsFact">Loading…</div>
+    </div>
+
   </div>
 
   <!-- ERROR -->
@@ -1516,10 +1629,94 @@ function fillSearch(t) {
   document.getElementById('searchInput').focus();
 }
 
-function setLoading(on, label) {
-  document.getElementById('loadingState').style.display = on ? 'flex' : 'none';
+// ── LOADING SEQUENCE CONTROLLER ─────────────────────────────────
+const SCIENCE_FACTS = [
+  "Over 4 million scientific papers are published every year — more than 10,000 every single day.",
+  "Around 50% of published research findings in some fields cannot be independently replicated.",
+  "The average time from scientific discovery to clinical practice is 17 years.",
+  "PubMed alone indexes more than 36 million biomedical articles dating back to the 1800s.",
+  "A single Cochrane systematic review can synthesise evidence from hundreds of individual studies.",
+  "Publication bias means positive findings are roughly 3× more likely to be published than null results.",
+  "The Bradford Hill criteria — published in 1965 — remain the gold standard for establishing causation in epidemiology.",
+  "Peer review as we know it only became standard practice in the 1970s, despite science existing for centuries.",
+  "Meta-analyses are among the most powerful study designs, but only as reliable as the studies they include.",
+  "Most nutritional epidemiology relies on self-reported food diaries — one of the weakest forms of evidence.",
+  "Industry-funded studies are approximately 4× more likely to produce results favourable to the funder.",
+  "The 'file drawer problem': thousands of null results sit unpublished, distorting our view of what the evidence shows.",
+  "GRADE — the global standard for rating evidence quality — was developed in 2004 by a collaboration of 67 researchers.",
+  "A p-value of 0.05 doesn't mean a 95% chance the result is true. It means you'd see the result by chance 5% of the time.",
+  "The largest meta-analysis ever published analysed over 10 million people across 195 countries.",
+];
+
+let _factInterval = null;
+let _factIdx = 0;
+
+function startFacts() {
+  _factIdx = Math.floor(Math.random() * SCIENCE_FACTS.length);
+  const el = document.getElementById('lsFact');
+  el.textContent = SCIENCE_FACTS[_factIdx];
+  el.classList.remove('fading');
+  _factInterval = setInterval(() => {
+    el.classList.add('fading');
+    setTimeout(() => {
+      _factIdx = (_factIdx + 1) % SCIENCE_FACTS.length;
+      el.textContent = SCIENCE_FACTS[_factIdx];
+      el.classList.remove('fading');
+    }, 500);
+  }, 5000);
+}
+
+function stopFacts() {
+  if (_factInterval) { clearInterval(_factInterval); _factInterval = null; }
+}
+
+let _currentStep = -1;
+
+function setStep(idx) {
+  // Mark previous as done
+  if (_currentStep >= 0 && _currentStep !== idx) {
+    const prev = document.getElementById(`lstep-${_currentStep}`);
+    if (prev) {
+      prev.classList.remove('active');
+      prev.classList.add('done');
+      prev.querySelector('.ls-step-icon').textContent = '✓';
+    }
+  }
+  // Activate new step
+  _currentStep = idx;
+  const el = document.getElementById(`lstep-${idx}`);
+  if (el) {
+    el.classList.add('active');
+    el.classList.remove('done');
+  }
+}
+
+function setLoading(on, stepIdx) {
+  const el = document.getElementById('loadingState');
+  el.style.display = on ? 'flex' : 'none';
   document.getElementById('searchBtn').disabled = on;
-  if (label) document.getElementById('loadLabel').textContent = label;
+
+  if (on) {
+    // Reset all steps
+    _currentStep = -1;
+    for (let i = 0; i < 6; i++) {
+      const s = document.getElementById(`lstep-${i}`);
+      if (s) { s.classList.remove('active','done'); s.querySelector('.ls-step-icon').textContent = '◈'; }
+    }
+    if (stepIdx !== undefined) setStep(stepIdx);
+    startFacts();
+  } else {
+    stopFacts();
+    // Complete all steps
+    for (let i = 0; i <= _currentStep; i++) {
+      const s = document.getElementById(`lstep-${i}`);
+      if (s) {
+        s.classList.remove('active');
+        s.classList.add('done');
+        s.querySelector('.ls-step-icon').textContent = '✓';
+      }
+    }
+  }
 }
 
 function showError(msg) {
@@ -1543,23 +1740,32 @@ async function runSearch() {
   document.getElementById('hero').classList.add('compact');
   document.getElementById('resultsSections').style.display = 'none';
   document.getElementById('errorState').style.display = 'none';
-  setLoading(true, 'Understanding your query…');
+  setLoading(true, 0); // Step 0: reading question
+
+  // Simulate step progression while the real request is in flight
+  // Steps 1-5 are timed to roughly match the actual pipeline duration (~20-30s)
+  const stepTimings = [800, 3500, 7000, 12000, 18000];
+  const stepTimers  = stepTimings.map((t, i) => setTimeout(() => setStep(i + 1), t));
 
   try {
-    setLoading(true, 'Searching 250M+ publications…');
     const res = await fetch('/api/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query })
     });
 
+    // Clear pending step timers — result arrived
+    stepTimers.forEach(clearTimeout);
+
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || `Server error ${res.status}`);
     }
 
-    setLoading(true, 'Analysing evidence…');
+    // Briefly hold on step 5 (computing consensus) so it feels intentional
+    setStep(5);
     const data = await res.json();
+    await new Promise(r => setTimeout(r, 400));
 
     // Debug: log what we received
     console.log('[Verity] Response:', {
