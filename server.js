@@ -813,6 +813,48 @@ Rules:
 }
 
 // ─────────────────────────────────────────────────────────────────
+//  STEP 6b — Plain-language verdict (one sentence + one follow-up)
+//  The "bottom line" above the synthesis text.
+//  Written in first-person, practical, honest — not clinical.
+// ─────────────────────────────────────────────────────────────────
+async function generateVerdict(frame, scoring) {
+  const dirConf   = scoring.directionalConf;
+  const certainty = scoring.certainty;
+  const design    = scoring.designQuality;
+  const score     = scoring.score;
+  const contradict = scoring.contradiction;
+
+  const msg = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514', max_tokens: 200,
+    system: 'You write one-line practical verdicts on scientific topics. You are honest, warm, and direct — like a trusted doctor friend who gives you the real answer, not the defensive one. Never use jargon. Never hedge unnecessarily. Never start with "I".',
+    messages: [{
+      role: 'user',
+      content: `Write a bottom-line verdict for this question: "${frame.plain}"
+
+Evidence summary:
+- Score: ${score}/100 toward "${score > 0 ? frame.rightClaim : frame.leftClaim}"
+- Directional confidence: ${dirConf} (how consistently evidence points one way)
+- Causal certainty: ${certainty} (quality of study designs)
+- Design quality: ${design}
+- Contradiction: ${contradict.toFixed(2)} (0=one-sided, 1=perfectly split)
+
+Write exactly TWO sentences. Nothing more.
+
+Sentence 1: The practical bottom line. What should a reasonable person DO or BELIEVE based on this evidence? Be direct. If the signal is strong, say so. If it is weak or mixed, say that.
+Sentence 2: The key honest caveat — what we know vs what we still don't, in plain English.
+
+Examples of the right tone:
+- "You can probably keep drinking coffee in good conscience — consistent evidence across millions of people links it to lower mortality risk. That said, almost all of it is observational, so we know the pattern without fully understanding the cause."
+- "The evidence against high red meat intake is about as solid as nutritional epidemiology gets. It doesn't prove causation, but 'probably linked to higher cancer risk' is the honest read."
+- "The evidence here is genuinely mixed — high-quality studies disagree, not just small ones. Hold this one loosely."
+
+Now write the verdict for "${frame.plain}". Two sentences. Honest. Approachable.`
+    }]
+  });
+  return msg.content[0].text.trim();
+}
+
+// ─────────────────────────────────────────────────────────────────
 //  MEDIA: 5-year news search — same window as science
 //
 //  Three sources, all supporting date-range queries:
@@ -1220,9 +1262,13 @@ app.post('/api/search', async (req, res) => {
     const scoring = computeConsensus(extractions);
     console.log(`  Score: ${scoring.score}/100 | Certainty: ${scoring.certainty} | Contradiction: ${scoring.contradiction} | n=${scoring.evidenceCount}`);
 
-    // ── 6. Synthesis (Claude writes prose from scored data) ───────
+    // ── 6. Synthesis + verdict in parallel ───────────────────────
     console.log('  Synthesizing...');
-    const summary = await synthesize(frame, papers, scoring);
+    const [summary, verdict] = await Promise.all([
+      synthesize(frame, papers, scoring),
+      generateVerdict(frame, scoring),
+    ]);
+    console.log(`  Verdict: "${verdict.slice(0, 80)}..."`);
 
     // ── 7. Build stance list for frontend strip ───────────────────
     const stances = extractions.map(ex => {
@@ -1262,6 +1308,7 @@ app.post('/api/search', async (req, res) => {
       },
       papers,
       analysis: {
+        verdict,
         summary,
         debate: {
           leftLabel:          frame.leftClaim,

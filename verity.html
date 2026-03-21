@@ -664,6 +664,7 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
       <div class="htag">Science only</div>
       <div class="htag">Peer-reviewed</div>
       <a href="/about.html" class="htag" style="text-decoration:none;cursor:pointer;transition:border-color 0.2s,color 0.2s;" onmouseover="this.style.borderColor='rgba(255,255,255,0.18)';this.style.color='rgba(255,255,255,0.6)'" onmouseout="this.style.borderColor='';this.style.color=''">About</a>
+      <a href="/pitch.html" class="htag" style="text-decoration:none;cursor:pointer;opacity:0.5;transition:all 0.2s;" onmouseover="this.style.borderColor='rgba(255,255,255,0.18)';this.style.color='rgba(255,255,255,0.6)';this.style.opacity='1'" onmouseout="this.style.borderColor='';this.style.color='';this.style.opacity='0.5'">Pitch</a>
     </div>
   </header>
 
@@ -831,7 +832,11 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
       <div class="section-title">AI Synthesis · Claude</div>
     </div>
     <div class="section-body">
-      <div class="ai-tag">Quality-weighted · 15 studies</div>
+      <div class="verdict-block" id="verdictBlock" style="display:none;">
+        <div class="verdict-label">Bottom line</div>
+        <div class="verdict-text" id="verdictText"></div>
+      </div>
+      <div class="ai-tag" id="studyCountTag">Quality-weighted · 15 studies</div>
       <div class="ai-text">
         The preponderance of peer-reviewed research published between 2020–2025 indicates that <strong>well-planned vegan diets are associated with measurable metabolic benefits</strong>, including reduced risks of cardiovascular disease, type 2 diabetes, and all-cause mortality. High-quality meta-analyses (largest dots in the map) consistently show lower BMI, LDL cholesterol, and blood pressure in plant-based cohorts — these carry the most weight in the consensus score.<br><br>
         A significant body of literature — particularly RCTs on muscle metabolism and cohort studies in older populations — raises concerns about <strong>nutritional adequacy without supplementation</strong>: Vitamin B12, omega-3 fatty acids (DHA/EPA), zinc, and complete protein. These studies are smaller and have lower quality scores, hence smaller dots.<br><br>
@@ -1917,6 +1922,20 @@ function populateFromData(data) {
   }
 
   // 3. AI synthesis
+  // Verdict — the practical bottom line
+  const verdictBlock = document.getElementById('verdictBlock');
+  const verdictEl    = document.getElementById('verdictText');
+  if (analysis.verdict && analysis.verdict.length > 10) {
+    verdictEl.textContent = analysis.verdict;
+    verdictBlock.style.display = 'block';
+  } else {
+    verdictBlock.style.display = 'none';
+  }
+
+  // Update study count tag
+  const studyTag = document.getElementById('studyCountTag');
+  if (studyTag) studyTag.textContent = `Quality-weighted · ${papers.length} studies`;
+
   // Ensure synthesis text renders with proper paragraph breaks
   let summaryHtml = analysis.summary || '—';
   // If it's plain paragraphs separated by double newlines or <br><br>, wrap in <p> tags

@@ -3,459 +3,152 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Verity — Evidence Intelligence Platform</title>
+<title>Verity — Why This Exists</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 :root {
-  --bg:     #07080f;
-  --bg2:    #0a0c18;
-  --paper:  rgba(255,255,255,0.90);
-  --muted:  rgba(255,255,255,0.38);
-  --faint:  rgba(255,255,255,0.07);
-  --border: rgba(255,255,255,0.06);
-  --blue:   #4e98c8;
-  --red:    #cc5c5c;
-  --orange: #c87d3a;
-  --gold:   #d4a847;
-  --green:  #4a9e72;
-  --pad:    clamp(24px, 8vw, 96px);
+  --bg: #07080f; --paper: rgba(255,255,255,0.90); --muted: rgba(255,255,255,0.38);
+  --border: rgba(255,255,255,0.06); --blue: #4e98c8; --red: #cc5c5c;
+  --gold: #d4a847; --green: #4a9e72; --pad: clamp(24px, 8vw, 96px);
 }
-
 html { scroll-behavior: smooth; }
-
-body {
-  background: var(--bg);
-  color: var(--paper);
-  font-family: 'Instrument Sans', sans-serif;
-  overflow-x: hidden;
-  line-height: 1;
-}
-
-/* ── GRAIN ── */
+body { background: var(--bg); color: var(--paper); font-family: 'Instrument Sans', sans-serif; overflow-x: hidden; line-height: 1; }
 body::before {
-  content: '';
-  position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  opacity: 0.18;
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.15;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.78' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23g)' opacity='0.09'/%3E%3C/svg%3E");
   background-size: 200px;
 }
-
-/* ── NAV ── */
 nav {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-  height: 52px;
-  background: rgba(7,8,15,0.88);
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center;
-  padding: 0 var(--pad);
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100; height: 52px;
+  background: rgba(7,8,15,0.88); backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 var(--pad);
 }
-.nav-inner {
-  max-width: 1100px; width: 100%; margin: 0 auto;
-  display: flex; align-items: center; justify-content: space-between;
-}
-.nav-brand {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 18px; font-weight: 400; letter-spacing: 0.06em;
-  color: var(--paper);
-}
-.nav-brand sup {
-  font-family: 'DM Mono', monospace;
-  font-size: 7px; color: var(--muted); vertical-align: super; margin-left: 2px;
-}
-.nav-links {
-  display: flex; gap: 0; overflow-x: auto;
-}
-.nav-links::-webkit-scrollbar { display: none; }
-.nav-link {
-  font-family: 'DM Mono', monospace;
-  font-size: 8.5px; letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--muted); text-decoration: none;
-  padding: 6px 11px; border-radius: 5px;
-  transition: color 0.15s, background 0.15s;
-  white-space: nowrap;
-}
-.nav-link:hover { color: var(--gold); background: rgba(212,168,71,0.07); }
-
-/* ── COVER ── */
+.nav-inner { max-width: 1100px; width: 100%; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+.nav-brand { font-family: 'Cormorant Garamond', serif; font-size: 18px; font-weight: 400; letter-spacing: 0.06em; color: var(--paper); text-decoration: none; }
+.nav-brand sup { font-family: 'DM Mono', monospace; font-size: 7px; color: var(--muted); vertical-align: super; margin-left: 2px; }
+.nav-links { display: flex; gap: 0; }
+.nav-link { font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); text-decoration: none; padding: 6px 11px; border-radius: 5px; transition: color 0.15s, background 0.15s; white-space: nowrap; }
+.nav-link:hover, .nav-link.active { color: var(--gold); background: rgba(212,168,71,0.07); }
 .cover {
-  min-height: 100vh;
-  display: flex; flex-direction: column; justify-content: flex-end;
-  padding: var(--pad); padding-top: 120px;
-  position: relative; overflow: hidden;
+  min-height: 100vh; display: flex; flex-direction: column; justify-content: flex-end;
+  padding: var(--pad); padding-top: 120px; position: relative; overflow: hidden;
 }
-
 .cover-bg {
   position: absolute; inset: 0; z-index: 0;
-  background:
-    radial-gradient(ellipse 80% 60% at 70% 10%, rgba(78,152,200,0.09) 0%, transparent 60%),
-    radial-gradient(ellipse 50% 50% at 10% 80%, rgba(204,92,92,0.06) 0%, transparent 55%),
-    radial-gradient(ellipse 40% 40% at 90% 85%, rgba(212,168,71,0.04) 0%, transparent 50%),
-    linear-gradient(165deg, #0c0f1f 0%, #07080f 40%, #060709 100%);
+  background: radial-gradient(ellipse 70% 55% at 65% 5%, rgba(78,152,200,0.07) 0%, transparent 60%),
+              radial-gradient(ellipse 45% 45% at 5% 90%, rgba(204,92,92,0.05) 0%, transparent 55%),
+              linear-gradient(170deg, #0b0d1e 0%, #07080f 45%, #060709 100%);
 }
-
-/* Fine grid overlay */
 .cover-grid {
-  position: absolute; inset: 0; z-index: 0; pointer-events: none;
-  opacity: 0.025;
-  background-image:
-    linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px);
+  position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.022;
+  background-image: linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px);
   background-size: 60px 60px;
 }
-
 .cover-content { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; width: 100%; }
-
-.cover-eyebrow {
-  font-family: 'DM Mono', monospace;
-  font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
-  color: var(--gold); margin-bottom: 36px;
-  opacity: 0; animation: fadeUp 0.8s ease 0.2s forwards;
-}
-
+.eyebrow-tag { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); margin-bottom: 32px; opacity: 0; animation: fadeUp 0.8s ease 0.2s forwards; }
 .cover-title {
   font-family: 'Cormorant Garamond', serif;
-  font-size: clamp(48px, 9vw, 100px);
-  font-weight: 300; line-height: 0.95;
-  letter-spacing: -0.02em;
-  color: var(--paper);
-  margin-bottom: 28px;
+  font-size: clamp(44px, 8.5vw, 96px); font-weight: 300; line-height: 0.96; letter-spacing: -0.02em;
+  color: var(--paper); margin-bottom: 32px;
   opacity: 0; animation: fadeUp 0.9s ease 0.35s forwards;
 }
-.cover-title em { font-style: italic; color: rgba(255,255,255,0.28); }
-
-.cover-rule {
-  width: 48px; height: 1px; background: var(--gold);
-  margin-bottom: 28px;
-  opacity: 0; animation: fadeUp 0.7s ease 0.5s forwards;
-}
-
+.cover-title em { font-style: italic; color: rgba(255,255,255,0.30); }
+.cover-rule { width: 48px; height: 1px; background: var(--gold); margin-bottom: 28px; opacity: 0; animation: fadeUp 0.7s ease 0.5s forwards; }
 .cover-sub {
-  font-size: clamp(13px, 2.5vw, 16px); font-weight: 300;
-  color: rgba(255,255,255,0.52); line-height: 1.72;
-  max-width: 500px; margin-bottom: 52px;
+  font-size: clamp(14px, 2.5vw, 17px); font-weight: 300; color: rgba(255,255,255,0.50);
+  line-height: 1.75; max-width: 520px; margin-bottom: 56px;
   opacity: 0; animation: fadeUp 0.8s ease 0.6s forwards;
 }
+.cover-scroll { font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(255,255,255,0.18); opacity: 0; animation: fadeUp 0.8s ease 0.8s forwards; }
 
-.cover-meta {
-  display: flex; gap: 32px; flex-wrap: wrap;
-  opacity: 0; animation: fadeUp 0.8s ease 0.75s forwards;
-}
-.cover-meta-item {
-  font-family: 'DM Mono', monospace;
-  font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
-  color: rgba(255,255,255,0.22);
-}
-.cover-meta-item em { color: rgba(212,168,71,0.65); font-style: normal; margin-right: 7px; }
-
-/* ── EXEC ── */
-.exec {
-  background: rgba(212,168,71,0.04);
-  border-top: 1px solid rgba(212,168,71,0.12);
-  border-bottom: 1px solid rgba(212,168,71,0.12);
-  padding: clamp(48px, 8vw, 80px) var(--pad);
-}
-.exec-inner { max-width: 760px; margin: 0 auto; }
-.exec-tag {
-  font-family: 'DM Mono', monospace;
-  font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase;
-  color: var(--gold); margin-bottom: 22px;
-}
-.exec-text {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: clamp(20px, 4vw, 28px); font-weight: 400; line-height: 1.5;
-  color: var(--paper);
-}
-.exec-text em { color: var(--gold); font-style: normal; }
-
-/* ── SECTIONS ── */
-.section {
-  padding: clamp(64px, 10vw, 100px) var(--pad);
-  border-top: 1px solid var(--border);
-  position: relative;
-}
+.section { padding: clamp(72px, 11vw, 110px) var(--pad); border-top: 1px solid var(--border); position: relative; }
 .section-inner { max-width: 1100px; margin: 0 auto; }
+.eyebrow { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); margin-bottom: 16px; }
+.section-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(30px, 5.5vw, 56px); font-weight: 300; line-height: 1.05; letter-spacing: -0.02em; color: var(--paper); margin-bottom: 36px; }
+.section-intro { font-size: clamp(14px, 2.4vw, 16px); font-weight: 300; color: rgba(255,255,255,0.52); line-height: 1.78; max-width: 680px; margin-bottom: 52px; }
 
-.eyebrow {
-  font-family: 'DM Mono', monospace;
-  font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase;
-  color: var(--gold); margin-bottom: 16px;
-}
-.section-title {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: clamp(32px, 6vw, 56px); font-weight: 300; line-height: 1.05;
-  letter-spacing: -0.02em; color: var(--paper);
-  margin-bottom: 36px;
-}
-.section-intro {
-  font-size: clamp(13px, 2.5vw, 15px); font-weight: 300;
-  color: rgba(255,255,255,0.52); line-height: 1.75;
-  max-width: 640px; margin-bottom: 48px;
-}
+.pullquote { border-left: 2px solid var(--gold); padding: 18px 0 18px 30px; margin: 52px 0; }
+.pullquote p { font-family: 'Cormorant Garamond', serif; font-size: clamp(20px, 3.8vw, 30px); font-weight: 400; font-style: italic; line-height: 1.38; color: var(--paper); }
+.pullquote cite { display: block; margin-top: 12px; font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(212,168,71,0.45); font-style: normal; }
 
-/* ── PULLQUOTE ── */
-.pullquote {
-  border-left: 2px solid var(--gold);
-  padding: 18px 0 18px 28px;
-  margin: 48px 0;
-}
-.pullquote p {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: clamp(18px, 3.5vw, 26px); font-weight: 400; font-style: italic;
-  line-height: 1.42; color: var(--paper);
-}
-.pullquote cite {
-  display: block; margin-top: 10px;
-  font-family: 'DM Mono', monospace; font-size: 8.5px;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  color: rgba(212,168,71,0.5); font-style: normal;
-}
+/* Big number row */
+.big-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin: 48px 0; }
+.big-cell { background: var(--bg); padding: 28px 24px; }
+.big-n { font-family: 'Cormorant Garamond', serif; font-size: clamp(38px, 7vw, 56px); font-weight: 400; line-height: 1; color: var(--gold); margin-bottom: 10px; letter-spacing: -0.02em; }
+.big-n.blue { color: var(--blue); } .big-n.red { color: var(--red); } .big-n.green { color: var(--green); }
+.big-label { font-size: 12.5px; font-weight: 300; color: rgba(255,255,255,0.45); line-height: 1.55; }
 
-/* ── CARD GRID ── */
-.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
-.card {
-  background: rgba(255,255,255,0.025);
-  border: 1px solid var(--border);
-  border-radius: 12px; padding: 22px 24px;
-  transition: border-color 0.2s, background 0.2s;
-}
-.card:hover {
-  border-color: rgba(212,168,71,0.18);
-  background: rgba(255,255,255,0.035);
-}
-.card-label {
-  font-family: 'DM Mono', monospace;
-  font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--gold); margin-bottom: 10px;
-}
-.card-title { font-size: 22px; font-weight: 500; color: var(--paper); margin-bottom: 8px; }
-.card-text { font-size: 13px; line-height: 1.72; color: rgba(255,255,255,0.52); font-weight: 300; }
+/* Cards */
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.card { background: rgba(255,255,255,0.025); border: 1px solid var(--border); border-radius: 12px; padding: 24px; transition: border-color 0.2s; }
+.card:hover { border-color: rgba(255,255,255,0.1); }
+.card-label { font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); margin-bottom: 12px; }
+.card-title { font-size: 15px; font-weight: 500; color: var(--paper); margin-bottom: 9px; }
+.card-text { font-size: 13px; line-height: 1.72; color: rgba(255,255,255,0.50); font-weight: 300; }
 .card-text strong { color: var(--paper); font-weight: 500; }
 
-/* ── STAT ROW ── */
-.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 36px 0; }
-.stat {
-  background: rgba(255,255,255,0.025);
-  border: 1px solid var(--border);
-  border-radius: 10px; padding: 22px 20px;
-}
-.stat-val {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: clamp(32px, 6vw, 44px); font-weight: 500; line-height: 1;
-  color: var(--gold); margin-bottom: 8px; letter-spacing: -0.02em;
-}
-.stat-val.blue  { color: var(--blue); }
-.stat-val.green { color: var(--green); }
-.stat-val.white { color: var(--paper); }
-.stat-label { font-size: 12px; font-weight: 300; color: rgba(255,255,255,0.45); line-height: 1.5; }
+/* Two col */
+.two-col { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 48px; align-items: start; }
+@media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
 
-/* ── NUMBER LIST ── */
-.num-list { display: flex; flex-direction: column; gap: 10px; }
-.num-item {
-  background: rgba(255,255,255,0.025);
-  border: 1px solid var(--border);
-  border-radius: 10px; padding: 20px 22px;
-  display: flex; gap: 18px; align-items: flex-start;
-  transition: border-color 0.2s;
-}
-.num-item:hover { border-color: rgba(255,255,255,0.1); }
-.num-n {
-  font-family: 'DM Mono', monospace;
-  font-size: 10px; color: var(--gold); letter-spacing: 0.1em;
-  flex-shrink: 0; padding-top: 2px;
-}
-.num-title { font-size: 15px; font-weight: 500; color: var(--paper); margin-bottom: 6px; }
-.num-text { font-size: 13px; line-height: 1.68; color: rgba(255,255,255,0.52); font-weight: 300; }
-.num-text strong { color: var(--paper); font-weight: 500; }
+/* Comparison block */
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 36px 0; }
+@media (max-width: 560px) { .compare { grid-template-columns: 1fr; } }
+.compare-card { border-radius: 10px; padding: 20px 22px; }
+.c-bad  { background: rgba(204,92,92,0.05); border: 1px solid rgba(204,92,92,0.14); }
+.c-good { background: rgba(74,158,114,0.05); border: 1px solid rgba(74,158,114,0.14); }
+.c-tag { font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px; }
+.c-bad .c-tag  { color: rgba(204,92,92,0.7); }
+.c-good .c-tag { color: rgba(74,158,114,0.7); }
+.c-text { font-size: 13px; line-height: 1.68; font-weight: 300; }
+.c-bad .c-text  { color: rgba(204,140,140,0.75); }
+.c-good .c-text { color: rgba(140,204,170,0.80); }
+.c-text strong { font-weight: 500; opacity: 0.95; }
 
-/* ── COMPETITOR TABLE ── */
-.comp-wrap {
-  overflow-x: auto; border-radius: 10px;
-  border: 1px solid var(--border); margin-top: 24px;
-}
-.comp-table { width: 100%; min-width: 420px; border-collapse: collapse; }
-.comp-table th {
-  font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 0.12em;
-  text-transform: uppercase; color: var(--muted);
-  padding: 13px 16px; text-align: left;
-  border-bottom: 1px solid var(--border);
-}
-.comp-table td {
-  padding: 12px 16px; font-size: 12.5px; font-weight: 300;
-  color: rgba(255,255,255,0.52);
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-}
-.comp-table tr:last-child td { border-bottom: none; }
-.comp-table tr.hl { background: rgba(212,168,71,0.05); }
-.comp-table tr.hl td { color: var(--gold); font-weight: 500; }
-.dot-y { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
-.dot-n { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.1); }
-.dot-p { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--orange); }
+/* Long prose */
+.prose { font-size: clamp(14px, 2.3vw, 16px); font-weight: 300; color: rgba(255,255,255,0.55); line-height: 1.82; max-width: 680px; }
+.prose + .prose { margin-top: 24px; }
+.prose strong { color: var(--paper); font-weight: 500; }
+.prose em { font-style: italic; color: rgba(255,255,255,0.42); }
 
-/* ── TWO COLUMN ── */
-.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-@media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
-
-/* ── REVENUE TABLE ── */
-.rev-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); margin-top: 28px; }
-.rev-table { width: 100%; min-width: 480px; border-collapse: collapse; }
-.rev-table th {
-  font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 0.12em;
-  text-transform: uppercase; color: var(--muted);
-  padding: 13px 16px; text-align: left;
-  border-bottom: 1px solid var(--border);
-}
-.rev-table td {
-  padding: 12px 16px; font-size: 12.5px; font-weight: 300;
-  color: rgba(255,255,255,0.52);
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-}
-.rev-table tr:last-child td { border-bottom: none; }
-.rev-table tr.milestone { background: rgba(212,168,71,0.05); }
-.rev-table tr.milestone td { color: var(--gold); font-weight: 500; }
-.rev-table td.val { font-weight: 500; color: var(--paper); }
-
-/* ── PHASES ── */
-.phases { display: flex; flex-direction: column; position: relative; }
-.phases::before {
-  content: ''; position: absolute; left: 14px; top: 30px; bottom: 30px;
-  width: 1px; background: rgba(212,168,71,0.14);
-}
-.phase { padding: 0 0 40px 50px; position: relative; }
-.phase:last-child { padding-bottom: 0; }
-.phase-dot {
-  position: absolute; left: 8px; top: 5px;
-  width: 14px; height: 14px; border-radius: 50%;
-  background: var(--bg); border: 1.5px solid var(--gold);
-}
-.phase-meta { display: flex; gap: 14px; align-items: baseline; margin-bottom: 9px; flex-wrap: wrap; }
-.phase-num  { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.12em; color: var(--gold); }
-.phase-when { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); }
-.phase-title { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 400; color: var(--paper); margin-bottom: 9px; }
-.phase-desc  { font-size: 13px; line-height: 1.7; color: rgba(255,255,255,0.52); font-weight: 300; }
-.phase-target {
-  display: inline-block; margin-top: 12px;
-  background: rgba(74,158,114,0.08); border: 1px solid rgba(74,158,114,0.2);
-  border-radius: 5px; font-family: 'DM Mono', monospace;
-  font-size: 9px; color: rgba(74,158,114,0.85);
-  padding: 3px 10px; letter-spacing: 0.08em;
-}
-
-/* ── DIVIDER ── */
 hr { border: none; border-top: 1px solid var(--border); margin: 52px 0; }
 
-/* ── ACCENT BOX ── */
-.abox {
-  border-left: 2px solid var(--gold);
-  background: rgba(212,168,71,0.04);
-  border-radius: 0 8px 8px 0;
-  padding: 20px 24px; margin: 36px 0;
-}
-.abox-label {
-  font-family: 'DM Mono', monospace; font-size: 8.5px;
-  letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--gold); margin-bottom: 9px;
-}
-.abox-text { font-size: 13.5px; line-height: 1.7; color: rgba(255,255,255,0.62); font-weight: 300; }
+/* Accent box */
+.abox { border-left: 2px solid var(--gold); background: rgba(212,168,71,0.04); border-radius: 0 8px 8px 0; padding: 20px 26px; margin: 40px 0; }
+.abox-label { font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
+.abox-text { font-size: 14px; line-height: 1.72; color: rgba(255,255,255,0.60); font-weight: 300; }
+.abox-text strong { color: var(--paper); font-weight: 500; }
 
-/* ── EXIT CARDS ── */
-.exit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 28px; }
-.exit-card {
-  background: rgba(255,255,255,0.02); border: 1px solid var(--border);
-  border-radius: 12px; padding: 26px 24px;
-}
-.exit-label {
-  font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 0.14em;
-  text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
-}
-.exit-num {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 36px; font-weight: 400; color: var(--gold);
-  margin-bottom: 10px; line-height: 1;
-}
-.exit-text { font-size: 12.5px; line-height: 1.65; color: rgba(255,255,255,0.48); font-weight: 300; }
-.exit-text strong { color: var(--paper); font-weight: 500; }
+/* CTA */
+.cta-block { text-align: center; padding: clamp(64px, 10vw, 100px) var(--pad); border-top: 1px solid var(--border); }
+.cta-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(28px, 5vw, 48px); font-weight: 300; color: var(--paper); margin-bottom: 20px; line-height: 1.1; }
+.cta-sub { font-size: 14px; font-weight: 300; color: rgba(255,255,255,0.42); margin-bottom: 36px; }
+.cta-btn { display: inline-block; font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); border: 1px solid rgba(212,168,71,0.35); padding: 12px 28px; border-radius: 7px; text-decoration: none; transition: all 0.2s; }
+.cta-btn:hover { background: rgba(212,168,71,0.08); border-color: rgba(212,168,71,0.6); }
 
-/* ── ASK BLOCK ── */
-.ask-block {
-  background: rgba(212,168,71,0.04);
-  border: 1px solid rgba(212,168,71,0.15);
-  border-radius: 14px; padding: clamp(32px, 6vw, 56px);
-  margin-top: 32px;
-}
-.ask-title {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: clamp(24px, 4.5vw, 36px); font-weight: 400;
-  color: var(--paper); margin-bottom: 28px; line-height: 1.15;
-}
-.ask-items { display: flex; flex-direction: column; gap: 22px; }
-.ask-item { display: flex; gap: 16px; align-items: flex-start; }
-.ask-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); flex-shrink: 0; margin-top: 6px; }
-.ask-item-title { font-size: 15px; font-weight: 500; color: var(--paper); margin-bottom: 4px; }
-.ask-item-text { font-size: 13px; line-height: 1.68; color: rgba(255,255,255,0.52); font-weight: 300; }
+footer { border-top: 1px solid var(--border); padding: clamp(48px, 8vw, 80px) var(--pad); }
+.footer-inner { max-width: 1100px; margin: 0 auto; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 24px; }
+.footer-wm { font-family: 'Cormorant Garamond', serif; font-size: clamp(36px, 8vw, 60px); font-weight: 300; letter-spacing: -0.02em; color: var(--paper); line-height: 1; }
+.footer-wm sup { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); vertical-align: super; }
+.footer-meta { font-family: 'DM Mono', monospace; font-size: 9px; color: rgba(255,255,255,0.18); line-height: 2; letter-spacing: 0.05em; text-align: right; }
 
-/* ── FOOTER ── */
-footer {
-  border-top: 1px solid var(--border);
-  padding: clamp(56px, 10vw, 96px) var(--pad);
-}
-.footer-inner { max-width: 1100px; margin: 0 auto; }
-.footer-top { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 24px; margin-bottom: 48px; }
-.footer-wordmark {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: clamp(44px, 10vw, 72px); font-weight: 300;
-  letter-spacing: -0.02em; color: var(--paper); line-height: 1;
-}
-.footer-wordmark sup {
-  font-family: 'DM Mono', monospace;
-  font-size: 10px; color: var(--muted); vertical-align: super; margin-left: 4px;
-}
-.footer-meta {
-  font-family: 'DM Mono', monospace; font-size: 9px;
-  color: rgba(255,255,255,0.18); line-height: 2.2;
-  letter-spacing: 0.06em; text-align: right;
-}
-.footer-divider { height: 1px; background: var(--border); margin-bottom: 32px; }
-.footer-disclaimer { font-size: 11px; color: rgba(255,255,255,0.22); line-height: 1.75; max-width: 700px; font-weight: 300; }
-
-/* ── ANIMATIONS ── */
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.reveal {
-  opacity: 0; transform: translateY(20px);
-  transition: opacity 0.7s ease, transform 0.7s ease;
-}
+@keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+.reveal { opacity: 0; transform: translateY(22px); transition: opacity 0.75s ease, transform 0.75s ease; }
 .reveal.visible { opacity: 1; transform: translateY(0); }
-
-/* ── RESPONSIVE ── */
-@media (max-width: 680px) {
-  .nav-links { display: none; }
-  .stat-row { grid-template-columns: 1fr 1fr; }
-}
+.reveal-d1 { transition-delay: 0.1s; } .reveal-d2 { transition-delay: 0.2s; } .reveal-d3 { transition-delay: 0.3s; }
 </style>
 </head>
 <body>
 
-<!-- NAV -->
 <nav>
   <div class="nav-inner">
-    <div class="nav-brand">Verity<sup>β</sup></div>
+    <a class="nav-brand" href="/">Verity<sup>β</sup></a>
     <div class="nav-links">
-      <a class="nav-link" href="#opportunity">Opportunity</a>
-      <a class="nav-link" href="#product">Product</a>
-      <a class="nav-link" href="#market">Market</a>
-      <a class="nav-link" href="#timing">Timing</a>
-      <a class="nav-link" href="#paths">Paths</a>
-      <a class="nav-link" href="#numbers">Numbers</a>
-      <a class="nav-link" href="#risks">Risks</a>
-      <a class="nav-link" href="#ask">The Ask</a>
+      <a class="nav-link" href="/">Search</a>
+      <a class="nav-link active" href="/about.html">About</a>
+      <a class="nav-link" href="/pitch.html">Pitch</a>
     </div>
   </div>
 </nav>
@@ -465,320 +158,246 @@ footer {
   <div class="cover-bg"></div>
   <div class="cover-grid"></div>
   <div class="cover-content">
-    <div class="cover-eyebrow">Pitch Memorandum · Confidential · March 2026</div>
-    <h1 class="cover-title">Evidence<br><em>Intelligence</em><br>Platform</h1>
+    <div class="eyebrow-tag">Why Verity exists</div>
+    <h1 class="cover-title">Science moved.<br><em>The story</em><br>didn't follow.</h1>
     <div class="cover-rule"></div>
-    <p class="cover-sub">The scientific record is the most valuable knowledge asset in human history. It is also profoundly inaccessible, poorly communicated, and systematically misrepresented by media. Verity closes that gap.</p>
-    <div class="cover-meta">
-      <div class="cover-meta-item"><em>Stage</em>Pre-seed · Working product</div>
-      <div class="cover-meta-item"><em>Stack</em>PubMed · Semantic Scholar · OpenAlex</div>
-      <div class="cover-meta-item"><em>Upside</em>$6–10M asset · $1B+ platform</div>
+    <p class="cover-sub">We live in the most information-rich moment in human history. We are also, measurably, one of the most misinformed. Those two facts are connected.</p>
+    <div class="cover-scroll">Scroll to explore ↓</div>
+  </div>
+</section>
+
+<!-- 01 THE PROBLEM WITH HOW SCIENCE IS COMMUNICATED -->
+<section class="section" id="problem">
+  <div class="section-inner reveal">
+    <div class="eyebrow">The core problem</div>
+    <h2 class="section-title">A study isn't<br>a conclusion.</h2>
+    <p class="section-intro">But that's exactly how it gets reported. One paper, one headline, one viral post — and a belief is formed that can take a decade of contradicting research to dislodge. The problem is not that science is wrong. It is that how we communicate it is almost perfectly designed to mislead.</p>
+
+    <div class="big-row">
+      <div class="big-cell"><div class="big-n">4M+</div><div class="big-label">Scientific papers published every year. Fewer than 0.01% are accurately represented in mainstream coverage.</div></div>
+      <div class="big-cell"><div class="big-n blue">17 yrs</div><div class="big-label">Average time for a research finding to become standard clinical practice — if it ever does.</div></div>
+      <div class="big-cell"><div class="big-n red">3×</div><div class="big-label">Positive results are three times more likely to be published than null results. The record is skewed before media touches it.</div></div>
+      <div class="big-cell"><div class="big-n green">0.05</div><div class="big-label">The p-value threshold. Does not mean 95% chance the result is true — but that's how it's understood.</div></div>
+    </div>
+
+    <div class="pullquote">
+      <p>The most dangerous scientific claim is not the fabricated one. It is the technically accurate finding, stripped of its context, amplified by social media, and hardened into belief before the replication attempts are published.</p>
     </div>
   </div>
 </section>
 
-<!-- EXEC -->
-<section class="exec">
-  <div class="exec-inner">
-    <div class="exec-tag">Executive Summary</div>
-    <p class="exec-text">Verity is a science consensus search engine that answers: <em>what does the peer-reviewed evidence actually show — and how does media coverage compare?</em> Every result is computed by a deterministic algorithm, not an AI opinion. The media divergence layer is unique in the category. No competitor has built it. The working product is live today.</p>
-  </div>
-</section>
-
-<!-- 01 OPPORTUNITY -->
-<section class="section" id="opportunity">
+<!-- 02 HOW MEDIA DISTORTS -->
+<section class="section" id="media">
   <div class="section-inner reveal">
-    <div class="eyebrow">01 — The Opportunity</div>
-    <h2 class="section-title">The gap between science<br>and what people believe.</h2>
-    <p class="section-intro">4 million papers are published every year. The gap between what research shows and what the public — and policymakers — believe is growing faster than research output itself. This is not an information scarcity problem. It is an information architecture problem.</p>
+    <div class="eyebrow">The media layer</div>
+    <h2 class="section-title">The gap between<br>what science shows<br>and what you read.</h2>
+    <p class="section-intro">This is not about fake news or deliberate misinformation. It is a structural problem in how health and science journalism works — and it produces systematic, measurable distortions in what the public believes.</p>
 
     <div class="card-grid">
       <div class="card">
-        <div class="card-label">The Access Failure</div>
-        <div class="card-text">Most high-quality research sits behind paywalls, written in language inaccessible to non-specialists. <strong>The evidence exists. Nobody can reach it.</strong></div>
+        <div class="card-label">The novelty bias</div>
+        <div class="card-title">New overrides consistent</div>
+        <div class="card-text">A single new study challenging established consensus gets coverage. The 47 studies confirming it don't. <strong>Journalism rewards novelty. Science rewards replication.</strong> The incentives run in opposite directions.</div>
       </div>
       <div class="card">
-        <div class="card-label">The Translation Failure</div>
-        <div class="card-text">Media over-weights novel, dramatic, and commercially interesting findings. The systematic bias is not random — <strong>it is measurable and structured.</strong></div>
+        <div class="card-label">The dramatic finding bias</div>
+        <div class="card-title">Effect size gets lost</div>
+        <div class="card-text">"Doubles the risk" sounds alarming. But if the baseline risk is 0.02%, doubling it is 0.04%. <strong>Relative risk without absolute risk is almost always misleading</strong> — and relative risk is what gets printed.</div>
       </div>
       <div class="card">
-        <div class="card-label">The Synthesis Failure</div>
-        <div class="card-text">No tool exists that shows both where the science stands and how far media has drifted from it — simultaneously. <strong>That gap is Verity.</strong></div>
+        <div class="card-label">The industry funding problem</div>
+        <div class="card-title">Who paid for the study</div>
+        <div class="card-text">Industry-funded nutrition research is four times more likely to produce findings favourable to the funder. <strong>This rarely appears in the headline.</strong> It changes how much weight the finding deserves.</div>
+      </div>
+      <div class="card">
+        <div class="card-label">The design hierarchy problem</div>
+        <div class="card-title">Not all studies are equal</div>
+        <div class="card-text">A meta-analysis of 40 RCTs and a single observational study of 200 people are both reported as "a study found." <strong>They are not remotely equivalent.</strong> Verity weights them accordingly.</div>
+      </div>
+    </div>
+
+    <hr>
+
+    <div class="two-col">
+      <div>
+        <h3 style="font-family:'Cormorant Garamond',serif;font-size:clamp(20px,3.5vw,28px);font-weight:300;color:var(--paper);margin-bottom:20px;line-height:1.2;">What Verity actually measures</h3>
+        <p class="prose">For any topic, Verity retrieves every relevant paper from the last five years across three independent academic databases — Semantic Scholar, PubMed, and OpenAlex. It then separately retrieves five years of news coverage on the same topic from major outlets.</p>
+        <p class="prose" style="margin-top:20px;">The gap between those two distributions — where science actually lands versus where media places the topic — is the divergence signal. For many well-covered health topics, it is <strong>substantial and consistent</strong>. Media coverage of nutrition topics leans measurably more optimistic than the quality-weighted scientific evidence.</p>
+        <p class="prose" style="margin-top:20px;">That gap is not random. It has a direction, a magnitude, and it shapes what millions of people believe.</p>
+      </div>
+      <div>
+        <div class="abox" style="margin:0;">
+          <div class="abox-label">An example</div>
+          <div class="abox-text">Search "red meat and cancer." The quality-weighted scientific consensus scores at approximately 95% concern — strong, consistent association with colorectal cancer across multiple large meta-analyses. Media coverage of the same topic over five years scores around 60–65% concern. The gap is real, measurable, and it exists because alarming findings get more coverage than the steady accumulation of confirmatory evidence.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 03 SOCIAL MEDIA -->
+<section class="section" id="social">
+  <div class="section-inner reveal">
+    <div class="eyebrow">The social media layer</div>
+    <h2 class="section-title">A misquoted finding<br>travels at the speed<br>of a trend.</h2>
+    <p class="section-intro">The distortions introduced by science journalism are real. But they are compounded by what happens when those already-simplified stories enter social media — where they are compressed, decontextualised, and amplified by engagement mechanics that have nothing to do with accuracy.</p>
+
+    <div class="compare">
+      <div class="compare-card c-bad">
+        <div class="c-tag">What the study said</div>
+        <div class="c-text">A prospective cohort study of 1,200 adults found that those reporting higher ultraprocessed food intake had a hazard ratio of 1.14 (95% CI 0.98–1.32) for all-cause mortality after adjusting for 14 confounders. The association was attenuated and non-significant after full adjustment.</div>
+      </div>
+      <div class="compare-card c-good">
+        <div class="c-tag">What went viral</div>
+        <div class="c-text"><strong>"Scientists confirm ultraprocessed food literally kills you."</strong> 2.3M views. 140K shares. The 95% confidence interval straddling 1.0 and the non-significant result after adjustment were not included in any of the 47 quote-tweets that collectively reached 8M people.</div>
+      </div>
+    </div>
+
+    <p class="prose" style="margin-top:48px;">This is not an anomaly. It is the default behaviour of information on platforms optimised for engagement. <strong>Alarming, simple, and emotionally resonant beats nuanced, probabilistic, and conditional</strong> — every single time. The algorithm does not penalise inaccuracy. It rewards attention.</p>
+
+    <p class="prose" style="margin-top:20px;">The result is a population whose beliefs about health, nutrition, medicine, and risk are shaped less by the actual scientific record and more by which findings happened to generate viral engagement in the week they were published. A single misrepresented study can embed a belief so firmly that years of contradicting literature cannot move it.</p>
+
+    <div class="pullquote">
+      <p>The scientific community produces its most important work over decades. Social media operates on a cycle of days. The mismatch is not a bug — it is the entire structure of the problem.</p>
+    </div>
+
+    <div class="card-grid" style="margin-top:0;">
+      <div class="card">
+        <div class="card-label">The partial quote</div>
+        <div class="card-text">A study shows X in population Y under condition Z. Social media removes Y and Z. <strong>The finding becomes universal when it was conditional.</strong></div>
+      </div>
+      <div class="card">
+        <div class="card-label">The preliminary finding</div>
+        <div class="card-text">Pre-print, n=80, no peer review, one lab. Goes viral. <strong>The three subsequent failed replications do not.</strong></div>
+      </div>
+      <div class="card">
+        <div class="card-label">The influencer pipeline</div>
+        <div class="card-text">A study gets a quote in a health newsletter. A fitness influencer reposts the quote without the study. <strong>The audience has no idea it started as research.</strong></div>
+      </div>
+      <div class="card">
+        <div class="card-label">The retraction gap</div>
+        <div class="card-text">A retracted study continues to circulate years after its retraction. <strong>The original post accumulates millions of impressions. The retraction notice gets 340 views.</strong></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 04 WHY CERTAINTY IS COMPLICATED -->
+<section class="section" id="certainty">
+  <div class="section-inner reveal">
+    <div class="eyebrow">On certainty</div>
+    <h2 class="section-title">Knowing the evidence<br>is pointing somewhere<br>is not the same as<br>knowing why.</h2>
+    <p class="section-intro">One of the most important distinctions in science communication — and one that is almost never made — is the difference between a consistent signal and a proven cause.</p>
+
+    <div class="two-col">
+      <div>
+        <p class="prose">Take coffee. The evidence that regular coffee consumption is associated with lower all-cause mortality is, at this point, about as consistent as observational nutrition research gets. Dozens of large cohort studies, across multiple populations, with millions of subjects, all pointing the same direction.</p>
+        <p class="prose" style="margin-top:20px;">But almost all of that evidence is observational. We cannot randomly assign people to drink or not drink coffee for twenty years and measure who dies. So the association is robust, the direction is clear — but the causal mechanism is not fully established.</p>
+        <p class="prose" style="margin-top:20px;"><strong>This is not the same as not knowing.</strong> It is knowing something with a specific kind of confidence — strong enough to influence a rational decision, not strong enough to make a causal claim. Verity distinguishes these two things explicitly, because collapsing them into a single "we're not sure" is one of the most misleading things you can do with scientific evidence.</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div class="abox" style="margin:0;">
+          <div class="abox-label">Directional confidence</div>
+          <div class="abox-text">How consistently does the evidence point one way? Strong directional confidence means many independent studies agree. This is a meaningful signal regardless of whether causation is established.</div>
+        </div>
+        <div class="abox" style="margin:0;border-color:var(--blue);background:rgba(78,152,200,0.04);">
+          <div class="abox-label" style="color:var(--blue);">Causal certainty</div>
+          <div class="abox-text">Can we establish mechanism and causation, not just association? This requires experimental evidence. For many long-term health questions, it is structurally impossible to achieve — not because the signal is weak, but because the study design required would be unethical or impractical.</div>
+        </div>
+        <div class="abox" style="margin:0;border-color:var(--red);background:rgba(204,92,92,0.04);">
+          <div class="abox-label" style="color:var(--red);">Genuine disagreement</div>
+          <div class="abox-text">High-quality studies pointing in opposite directions. This is a real scientific debate — not a limitation of evidence, but evidence of a genuinely contested question. Verity flags this separately.</div>
+        </div>
       </div>
     </div>
 
     <div class="pullquote">
-      <p>The divergence between scientific consensus and media narrative is not random noise — it is a measurable, structured signal. Verity makes that signal visible.</p>
-    </div>
-
-    <div class="stat-row">
-      <div class="stat"><div class="stat-val">4M+</div><div class="stat-label">Papers published annually — growing 4% per year</div></div>
-      <div class="stat"><div class="stat-val blue">$450B</div><div class="stat-label">Health information market — consumer and professional</div></div>
-      <div class="stat"><div class="stat-val">73%</div><div class="stat-label">Adults who distrust health headlines as of 2025</div></div>
-      <div class="stat"><div class="stat-val green">Free</div><div class="stat-label">PubMed · Semantic Scholar · OpenAlex APIs — zero data cost</div></div>
+      <p>The question "should I drink coffee?" and the question "does coffee definitively cause longevity benefits?" are not the same question. Science can answer the first even while working on the second.</p>
     </div>
   </div>
 </section>
 
-<!-- 02 PRODUCT -->
-<section class="section" id="product">
+<!-- 05 WHAT VERITY DOES -->
+<section class="section" id="what">
   <div class="section-inner reveal">
-    <div class="eyebrow">02 — The Product</div>
-    <h2 class="section-title">What a search returns.</h2>
-    <p class="section-intro">A user types any health or science question in natural language. Within 20–30 seconds, Verity returns six distinct outputs — each one something no existing tool produces in combination.</p>
-
-    <div class="num-list">
-      <div class="num-item"><div class="num-n">01</div><div class="num-body"><div class="num-title">Quality-weighted consensus score</div><div class="num-text">A bipolar spectrum score (Concern ↔ Benefit) derived from a <strong>deterministic algorithm</strong> — not an AI opinion. Each paper is weighted by study design, bias, precision, relevance, and independence.</div></div></div>
-      <div class="num-item"><div class="num-n">02</div><div class="num-body"><div class="num-title">Certainty level</div><div class="num-text">High / Moderate / Low / Very Low — with a plain-language explanation of why. <strong>Direction is always separated from confidence.</strong> A topic can lean positive with very low certainty.</div></div></div>
-      <div class="num-item"><div class="num-n">03</div><div class="num-body"><div class="num-title">AI-synthesised summary</div><div class="num-text">Plain-language prose written by Claude <strong>after</strong> the deterministic scoring is complete. The summary cannot invent numbers — every figure comes from the scored output.</div></div></div>
-      <div class="num-item"><div class="num-n">04</div><div class="num-body"><div class="num-title">Evidence strip</div><div class="num-text">Every study as a precision mark on a spectrum. Capsule shapes for meta-analyses, thin ticks for RCTs, cohort and observational studies. Height encodes quality weight. <strong>The distribution tells you more than the number.</strong></div></div></div>
-      <div class="num-item"><div class="num-n">05</div><div class="num-body"><div class="num-title">Media divergence layer</div><div class="num-text">The killer feature. Guardian, BBC, NYT, Reuters — articles over 5 years, filtered to the same topic, framed by Claude. <strong>The gap between science and headlines, quantified and visualised.</strong></div></div></div>
-      <div class="num-item"><div class="num-n">06</div><div class="num-body"><div class="num-title">Source sidebar</div><div class="num-text">Click any tick on the strip. See the abstract, quality score, framing analysis, and related articles. <strong>Every number is traceable to a real paper.</strong> No hallucinations possible — the scores are computed before Claude writes a word.</div></div></div>
-    </div>
-
-    <hr>
-
-    <div class="abox">
-      <div class="abox-label">The Scoring Formula</div>
-      <div class="abox-text">w = Design Prior × Bias Weight × Precision Weight × Relevance Weight × Independence Weight<br>c = Direction × Magnitude × w<br>score = 100 × Σ(c) / Σ|w × Magnitude| → bounded [-100, +100]</div>
-    </div>
-  </div>
-</section>
-
-<!-- 03 MARKET -->
-<section class="section" id="market">
-  <div class="section-inner reveal">
-    <div class="eyebrow">03 — Market Analysis</div>
-    <h2 class="section-title">Adjacent to all of them.<br>Owned by none.</h2>
-    <p class="section-intro">The space has well-funded players but none have built what Verity is building. The gap is structural, not tactical.</p>
-
-    <div class="comp-wrap">
-      <table class="comp-table">
-        <tr><th>Competitor</th><th>200M+ index</th><th>Weighted scoring</th><th>Media divergence</th><th>Certainty level</th><th>Consumer UX</th></tr>
-        <tr><td>Consensus.app <span style="color:var(--muted);font-size:11px;">$19.2M raised</span></td><td><span class="dot-y"></span></td><td><span class="dot-n"></span></td><td><span class="dot-n"></span></td><td><span class="dot-n"></span></td><td><span class="dot-y"></span></td></tr>
-        <tr><td>Elicit <span style="color:var(--muted);font-size:11px;">$33M raised</span></td><td><span class="dot-y"></span></td><td><span class="dot-n"></span></td><td><span class="dot-n"></span></td><td><span class="dot-p"></span> Partial</td><td><span class="dot-n"></span></td></tr>
-        <tr><td>Perplexity</td><td><span class="dot-p"></span> General</td><td><span class="dot-n"></span></td><td><span class="dot-n"></span></td><td><span class="dot-n"></span></td><td><span class="dot-y"></span></td></tr>
-        <tr><td>Scite.ai</td><td><span class="dot-y"></span></td><td><span class="dot-p"></span> Partial</td><td><span class="dot-n"></span></td><td><span class="dot-n"></span></td><td><span class="dot-n"></span></td></tr>
-        <tr><td>Examine.com <span style="color:var(--muted);font-size:11px;">$2M ARR</span></td><td><span class="dot-n"></span></td><td><span class="dot-n"></span></td><td><span class="dot-n"></span></td><td><span class="dot-n"></span></td><td><span class="dot-y"></span></td></tr>
-        <tr class="hl"><td>Verity ★</td><td>✓ Three sources</td><td>✓ Deterministic</td><td>✓ Unique</td><td>✓ Full GRADE-style</td><td>✓ Consumer-first</td></tr>
-      </table>
-    </div>
-
-    <hr>
-
-    <div class="abox">
-      <div class="abox-label">The Positioning</div>
-      <div class="abox-text">Not academic search. Not general AI search. A new category: <strong>evidence intelligence</strong> — what the science actually shows, how confident we should be, and where public understanding has drifted from it. Examine.com proves consumers pay $19–29/month for trusted, ad-free evidence synthesis. Verity is that — plus the media divergence story no one else tells.</div>
-    </div>
-  </div>
-</section>
-
-<!-- 04 TIMING -->
-<section class="section" id="timing">
-  <div class="section-inner reveal">
-    <div class="eyebrow">04 — Why Now</div>
-    <h2 class="section-title">Three forces.<br>One window.</h2>
-
-    <div class="num-list">
-      <div class="num-item"><div class="num-n">01</div><div class="num-body"><div class="num-title">The AI search disruption window</div><div class="num-text">Perplexity, ChatGPT, and Gemini have created a 24-month window where consumers are actively re-evaluating where they get information. Vertical, domain-specific tools that are more trustworthy than general AI have a rare moment of receptivity. <strong>This window is open now — it will narrow as habits re-solidify around 2–3 dominant platforms.</strong></div></div></div>
-      <div class="num-item"><div class="num-n">02</div><div class="num-body"><div class="num-title">The trust collapse in health media</div><div class="num-text">COVID permanently damaged credibility of both scientific institutions and mainstream health journalism. The public is simultaneously more sceptical of headlines AND more interested in understanding what research actually shows. <strong>Verity is positioned directly at that intersection.</strong></div></div></div>
-      <div class="num-item"><div class="num-n">03</div><div class="num-body"><div class="num-title">Academic database APIs have matured</div><div class="num-text">PubMed, Semantic Scholar, and OpenAlex all opened free, high-quality APIs in the 2020–2023 period. Two years ago, building what Verity does would have required expensive data partnerships. <strong>The infrastructure cost is now near zero.</strong></div></div></div>
-    </div>
-
-    <div class="pullquote" style="margin-top:52px;">
-      <p>The first-mover advantage in evidence intelligence is available now. It will not be in 2028.</p>
-    </div>
-  </div>
-</section>
-
-<!-- 05 PATHS -->
-<section class="section" id="paths">
-  <div class="section-inner reveal">
-    <div class="eyebrow">05 — Paths Forward</div>
-    <h2 class="section-title">Three distinct exits.<br>One starting point.</h2>
-    <p class="section-intro">The working MVP, codebase, architecture, and concept represent a credible, differentiated asset. Three paths exist, each with different risk profiles and upside.</p>
-
-    <div class="phases">
-      <div class="phase">
-        <div class="phase-dot" style="background:var(--gold);"></div>
-        <div class="phase-meta"><span class="phase-num">Path A</span><span class="phase-when">Recommended short-term · 6–12 months</span></div>
-        <div class="phase-title">Asset Sale</div>
-        <div class="phase-desc">The right buyer already has distribution — a health publisher, academic press, or research tool platform who needs a trusted evidence synthesis layer. Consensus.app's scoring is weak; Verity's algorithm is the exact complement to their index. Red Ventures (Healthline), BMJ Group, Springer Nature, and Elsevier are natural acquirers. Realistic range: £150K–£600K at current traction; £1M+ with 3–5 months of active use and press.</div>
-        <div class="phase-target">Target: £150K–£600K asset sale</div>
-      </div>
-      <div class="phase">
-        <div class="phase-dot"></div>
-        <div class="phase-meta"><span class="phase-num">Path B</span><span class="phase-when">Best for passive income · months 4–12</span></div>
-        <div class="phase-title">API Licensing</div>
-        <div class="phase-desc">The scoring engine and media divergence analysis are valuable as an embedded layer inside other products. Independent health publishers, clinical information platforms, and evidence-based apps might pay £2,000–8,000/month for API access. One enterprise contract at £5,000/month = £60,000 ARR with minimal overhead. The API already exists. The work is packaging, pricing, and finding the first 3 paying customers.</div>
-        <div class="phase-target">Target: £60–120K ARR from 1–2 clients</div>
-      </div>
-      <div class="phase">
-        <div class="phase-dot"></div>
-        <div class="phase-meta"><span class="phase-num">Path C</span><span class="phase-when">Highest upside · venture scale</span></div>
-        <div class="phase-title">Co-Founder + Funding</div>
-        <div class="phase-desc">The right commercial co-founder takes GTM while the original founder retains product ownership and equity. Pre-seed target: £400–800K for 18 months of product and initial distribution. The pitch is clear: evidence intelligence category, validated market, unique media divergence moat, working MVP. The co-founder profile: health media or publishing background, commercial operator energy, technically literate but not an engineer.</div>
-        <div class="phase-target">Target: Pre-seed at £400–800K · Exit at £200M–1B+</div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- 06 NUMBERS -->
-<section class="section" id="numbers">
-  <div class="section-inner reveal">
-    <div class="eyebrow">06 — Exit Scenarios</div>
-    <h2 class="section-title">Where value<br>gets realised.</h2>
-
-    <div class="exit-grid">
-      <div class="exit-card">
-        <div class="exit-label">Conservative · Asset sale</div>
-        <div class="exit-num">£150–600K</div>
-        <div class="exit-text">Asset + IP transfer. At $2M ARR (Examine.com comparable), standard SaaS multiples imply <strong>$6–10M exit.</strong> Realistic with 3–6 months of demonstrated traction.</div>
-      </div>
-      <div class="exit-card">
-        <div class="exit-label">Base case · Licensing revenue</div>
-        <div class="exit-num">£60–200K ARR</div>
-        <div class="exit-text">1–3 enterprise API clients at £5–8K/month. Passive once set up. Changes the asset sale conversation entirely — <strong>recurring revenue multiples are higher than one-time asset values.</strong></div>
-      </div>
-      <div class="exit-card">
-        <div class="exit-label">Bull case · Venture path</div>
-        <div class="exit-num">£1B+</div>
-        <div class="exit-text">Co-founder + seed + Series A. Platform play on evidence intelligence category. At 15–20% founder stake: <strong>£150–200M personal outcome.</strong> Five to eight year horizon.</div>
-      </div>
-    </div>
-
-    <hr>
-
-    <div class="eyebrow" style="margin-bottom:14px;">Milestones to unlock each scenario</div>
-    <div class="rev-wrap">
-      <table class="rev-table">
-        <tr><th>Milestone</th><th>Timeframe</th><th>Unlocks</th></tr>
-        <tr><td>50 gold-standard queries curated</td><td>Month 1</td><td class="val">Demo corpus · Reliable press pitch</td></tr>
-        <tr><td>Advisory board of 2–3 credentialed researchers</td><td>Month 1–2</td><td class="val">Credibility signal for every conversation</td></tr>
-        <tr><td>500 registered users + 3 case studies</td><td>Month 3</td><td class="val">Asset sale conversation changes</td></tr>
-        <tr class="milestone"><td>1 piece of earned press ★</td><td>Month 3–4</td><td class="val">Every subsequent conversation at higher level</td></tr>
-        <tr><td>1 pilot API client</td><td>Month 4–6</td><td class="val">Path B becomes real; strengthens Path A</td></tr>
-        <tr class="milestone"><td>£5K/month recurring ★</td><td>Month 6–9</td><td class="val">Asset sale price increases materially</td></tr>
-        <tr><td>Co-founder identified and trialled</td><td>Month 5–7</td><td class="val">Path C active; pre-seed possible</td></tr>
-        <tr class="milestone"><td>Pre-seed close ★</td><td>Month 9–12</td><td class="val">18-month runway · Full platform buildout</td></tr>
-      </table>
-    </div>
-  </div>
-</section>
-
-<!-- 07 RISKS -->
-<section class="section" id="risks">
-  <div class="section-inner reveal">
-    <div class="eyebrow">07 — Risks and Honest Limitations</div>
-    <h2 class="section-title">What could<br>go wrong.</h2>
+    <div class="eyebrow">What we built</div>
+    <h2 class="section-title">The entire body<br>of evidence.<br>Not the loudest study.</h2>
+    <p class="section-intro">Verity is not a search engine that finds papers. It is a synthesis engine that weights them, scores them, and shows you where the evidence actually lands — across hundreds of millions of publications — and then shows you how far the media's coverage of that same topic has drifted.</p>
 
     <div class="card-grid">
       <div class="card">
-        <div class="card-label">Scoring credibility</div>
-        <div class="card-text">The algorithm is principled but not yet peer-reviewed. A motivated critic could challenge the percentages. <strong>Mitigation:</strong> advisory board in Month 1, methodology white paper, and prominent certainty levels that acknowledge limitations openly.</div>
+        <div class="card-label">Quality-weighted scoring</div>
+        <div class="card-title">Not all studies count equally</div>
+        <div class="card-text">A meta-analysis of 40 RCTs outweighs a single observational study. A well-powered study with narrow confidence intervals outweighs a small pilot. <strong>The algorithm encodes study hierarchy explicitly, not as an afterthought.</strong></div>
       </div>
       <div class="card">
-        <div class="card-label">Consensus adds a media layer</div>
-        <div class="card-text">The most plausible competitive threat. They have the distribution and index to do this. <strong>Mitigation:</strong> move fast on press — once the media divergence angle has coverage, it becomes harder to replicate without being seen as a follower.</div>
+        <div class="card-label">Deterministic, not AI opinion</div>
+        <div class="card-title">The score is computed</div>
+        <div class="card-text">The consensus percentage is not what an AI thinks about the evidence. It is a formula: Design Prior × Bias Weight × Precision × Relevance × Independence. <strong>Every number is traceable. No hallucination is possible.</strong></div>
       </div>
       <div class="card">
-        <div class="card-label">LLM commodity risk</div>
-        <div class="card-text">General AI search will get better at citing papers. <strong>Mitigation:</strong> the moat is not "AI can summarise papers" — it is the deterministic scoring algorithm, the media divergence layer, and the proprietary query cache accumulating over time.</div>
+        <div class="card-label">The media divergence layer</div>
+        <div class="card-title">Where coverage drifts</div>
+        <div class="card-text">Verity retrieves five years of news coverage on the same topic from major outlets. It shows, as a separate visualisation, where media framing sits relative to the scientific evidence. <strong>The gap is often striking and always instructive.</strong></div>
       </div>
       <div class="card">
-        <div class="card-label">API dependency</div>
-        <div class="card-text">The product depends on Semantic Scholar, PubMed, and OpenAlex APIs. PubMed is US government infrastructure. <strong>Mitigation:</strong> three sources in parallel with graceful fallback — no single source is critical.</div>
+        <div class="card-label">Two kinds of confidence</div>
+        <div class="card-title">Direction vs causation</div>
+        <div class="card-text">Every result shows both the directional signal (how consistently does evidence point one way?) and the causal certainty (what type of studies support this?). <strong>These are different things. We treat them as different things.</strong></div>
+      </div>
+      <div class="card">
+        <div class="card-label">Honest uncertainty</div>
+        <div class="card-title">When we don't know, we say so</div>
+        <div class="card-text">Some questions genuinely have insufficient evidence. Conflicting high-quality studies exist. Verity does not manufacture a consensus where none exists — <strong>it tells you the evidence is genuinely divided, and shows you the split.</strong></div>
+      </div>
+      <div class="card">
+        <div class="card-label">No opinions, no agenda</div>
+        <div class="card-title">The record, not a position</div>
+        <div class="card-text">Verity has no view on what you should eat, take, or do. It has a very strong view that you deserve to know what the evidence actually shows — <strong>and that "the evidence" is not the same as "the last viral post."</strong></div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- 08 ASK -->
-<section class="section" id="ask">
+<!-- 06 THE BIGGER PICTURE -->
+<section class="section" id="bigger">
   <div class="section-inner reveal">
-    <div class="eyebrow">08 — The Ask</div>
-    <h2 class="section-title">This document is for<br>a small number of people.</h2>
-    <p class="section-intro">Not everyone. The right acquirer, the right co-founder, the right connector. If you're reading this, you're probably one of them.</p>
+    <div class="eyebrow">The bigger picture</div>
+    <h2 class="section-title">Holding your beliefs<br>loosely.</h2>
 
-    <div class="ask-block">
-      <div class="ask-title">Four ways to move this forward</div>
-      <div class="ask-items">
-        <div class="ask-item">
-          <div class="ask-dot"></div>
-          <div>
-            <div class="ask-item-title">If you are a potential acquirer</div>
-            <div class="ask-item-text">We are open to conversations about asset acquisition, IP licensing, or strategic partnership. The asking price scales with demonstrated traction — the conversation is better had sooner. A working demo can be arranged within 24 hours.</div>
-          </div>
-        </div>
-        <div class="ask-item">
-          <div class="ask-dot"></div>
-          <div>
-            <div class="ask-item-title">If you are a potential co-founder or operator</div>
-            <div class="ask-item-text">Commercial-minded, health media or publishing background, ready to go full-time. The product is built. The market is validated. The story is clear. 40–50% equity on the table for the right person.</div>
-          </div>
-        </div>
-        <div class="ask-item">
-          <div class="ask-dot"></div>
-          <div>
-            <div class="ask-item-title">If you are an investor</div>
-            <div class="ask-item-text">Not actively fundraising today. But if you have deep connections in health media, academic publishing, or consumer health and want to follow the journey — the pre-seed thesis writes itself.</div>
-          </div>
-        </div>
-        <div class="ask-item">
-          <div class="ask-dot"></div>
-          <div>
-            <div class="ask-item-title">If you are a connector</div>
-            <div class="ask-item-text">The most valuable introductions at this stage are to editors, science journalists, or health media operators who would find the media divergence angle genuinely interesting. One piece in Wired, Axios Health, or Nieman Lab changes the trajectory.</div>
-          </div>
-        </div>
-      </div>
+    <p class="prose">There is something deeply counterintuitive about scientific literacy: the more you understand how science works, the less certain you become about any individual finding — and the more confident you become in the overall direction of a body of evidence.</p>
+    <p class="prose" style="margin-top:24px;">A layperson reads a headline and forms a belief. A scientist reads the same headline and immediately wants to know the sample size, the design, who funded it, whether it has been replicated, what the effect size was, whether the confidence interval crossed null, and whether it fits with the mechanistic plausibility from related fields.</p>
+    <p class="prose" style="margin-top:24px;">These are not the same epistemic operations. The layperson ends up more certain. The scientist ends up more calibrated. <strong>Calibrated is better.</strong> Not because uncertainty feels good, but because decisions made on calibrated uncertainty tend to be better than decisions made on false confidence.</p>
+
+    <div class="pullquote">
+      <p>The goal is not to know less. It is to know with appropriate confidence — and to update that confidence honestly as the evidence accumulates.</p>
     </div>
 
-    <div class="pullquote" style="margin-top:52px;">
-      <p>The most important thing you can do after reading this isn't send money. It's send one name — a journalist, an editor, or an operator who would be genuinely upset if this didn't get built.</p>
-    </div>
-
-    <div class="abox">
-      <div class="abox-label">Live product</div>
-      <div class="abox-text">verity-production-a7d1.up.railway.app — Try a query. The evidence strip, the media divergence signal, and the certainty badge are all live today.</div>
-    </div>
+    <p class="prose">This is what Verity is trying to make possible for anyone, not just scientists. The ability to look at a question and see the whole picture: how consistent is the evidence, what kind of studies support it, where does media coverage diverge, and what would it take to change the assessment.</p>
+    <p class="prose" style="margin-top:24px;">Not a verdict. A view of the landscape.</p>
   </div>
 </section>
 
-<!-- FOOTER -->
+<!-- CTA -->
+<div class="cta-block reveal">
+  <h2 class="cta-title">See what the evidence<br>actually shows.</h2>
+  <p class="cta-sub">Free to use. No account required.</p>
+  <a href="/" class="cta-btn">Search the evidence →</a>
+</div>
+
 <footer>
   <div class="footer-inner">
-    <div class="footer-top">
-      <div class="footer-wordmark">Verity<sup>β</sup></div>
-      <div class="footer-meta">EVIDENCE INTELLIGENCE PLATFORM<br>CONFIDENTIAL · MARCH 2026<br>DO NOT DISTRIBUTE</div>
-    </div>
-    <div class="footer-divider"></div>
-    <p class="footer-disclaimer">This document is confidential and intended solely for the named recipient. It contains forward-looking statements and projections based on current assumptions that may not prove accurate. Nothing in this document constitutes a securities offering or investment advice. All financial projections are illustrative only. Do not distribute without permission.</p>
+    <div class="footer-wm">Verity<sup>β</sup></div>
+    <div class="footer-meta">EVIDENCE INTELLIGENCE<br>BUILT ON PUBMED · SEMANTIC SCHOLAR · OPENALEX</div>
   </div>
 </footer>
 
 <script>
-// Scroll reveal
-const observer = new IntersectionObserver(
-  entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }),
-  { threshold: 0.08, rootMargin: '0px 0px -40px 0px' }
+const io = new IntersectionObserver(
+  e => e.forEach(el => { if (el.isIntersecting) el.target.classList.add('visible'); }),
+  { threshold: 0.07, rootMargin: '0px 0px -30px 0px' }
 );
-document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
-
-// Active nav link on scroll
-const sections = document.querySelectorAll('section[id]');
-const navLinks  = document.querySelectorAll('.nav-link');
-const io = new IntersectionObserver(entries => {
-  entries.forEach(e => {
-    if (e.isIntersecting) {
-      navLinks.forEach(l => l.style.color = '');
-      const link = document.querySelector(`.nav-link[href="#${e.target.id}"]`);
-      if (link) link.style.color = 'rgba(212,168,71,0.85)';
-    }
-  });
-}, { threshold: 0.4 });
-sections.forEach(s => io.observe(s));
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 </script>
 </body>
 </html>
