@@ -1,3 +1,27 @@
+// ═════════════════════════════════════════════════════════════════
+//  Verity — Evidence Synthesis Engine  v6.0
+//
+//  ROOT CAUSE FIX (v5 → v6):
+//    The v5 filter required any 2 words from the plain question.
+//    "building" + "muscle" appeared in a JAK/STAT paper, so it passed.
+//    "creatine" never needed to appear at all. That is the bug.
+//
+//    Fix: Claude now returns requiredTerms[] (the specific entity
+//    that MUST appear in a paper's title or abstract) and synonyms[]
+//    (alternative phrasings that also count). The filter is now a
+//    hard deterministic check: if none of (requiredTerms ∪ synonyms)
+//    appear in the paper text → REJECTED. No exceptions.
+//
+//  Full pipeline:
+//    1. frameQuery      → PICO framing + requiredTerms + synonyms
+//    2. fetchAll        → Semantic Scholar + PubMed + OpenAlex (parallel)
+//    3. hardFilter      → DETERMINISTIC: requiredTerms/synonyms must appear
+//    4. extractOutcomes → Claude extracts structured per-paper outcomes
+//    5. computeConsensus→ DETERMINISTIC scoring: w=D×B×P×R×U, c=S×M×w
+//    6. synthesize      → Claude writes prose AFTER scores are computed
+//    7. media           → GDELT + framing analysis
+// ═════════════════════════════════════════════════════════════════
+
 const express   = require('express');
 const cors      = require('cors');
 const path      = require('path');
@@ -6,263 +30,849 @@ require('dotenv').config();
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '4mb' }));
 app.use(express.static(path.join(__dirname)));
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-app.get('/',       (_, res) => res.sendFile(path.join(__dirname, 'verity.html')));
-app.get('/health', (_, res) => res.json({ ok: true }));
+app.get('/', (_, res) => res.sendFile(path.join(__dirname, 'verity.html')));
+app.get('/health', (_, res) => res.json({ ok: true, version: '6.0' }));
 
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
 //  UTILS
-// ─────────────────────────────────────────────
-function reconstructAbstract(idx) {
-  if (!idx || typeof idx !== 'object') return '';
-  const pos = [];
-  for (const [word, locs] of Object.entries(idx)) {
-    for (const l of locs) pos[l] = word;
-  }
-  return pos.filter(Boolean).join(' ').trim();
-}
+// ─────────────────────────────────────────────────────────────────
+const stripHtml = str => String(str || '').replace(/<[^>]*>/g, '').trim();
 
-function stripHtml(str) {
-  return String(str || '').replace(/<[^>]*>/g, '').trim();
-}
-
-// ─────────────────────────────────────────────
-//  STEP 1 — Claude understands & optimizes query
-// ─────────────────────────────────────────────
-async function optimizeQuery(rawQuery) {
-  const msg = await anthropic.messages.create({
-    model:      'claude-sonnet-4-20250514',
-    max_tokens: 600,
-    system:     'You are a biomedical librarian and scientific search expert with deep knowledge of PubMed MeSH terms and academic search syntax. Respond ONLY with valid JSON, no markdown.',
-    messages:   [{
-      role: 'user',
-      content: `A user typed this into a science search engine: "${rawQuery}"
-
-Your job is to translate this into a precise academic search string that will return HIGHLY RELEVANT peer-reviewed papers — not tangentially related ones.
-
-Rules for searchString:
-- Use specific medical/scientific terminology (MeSH-style preferred)
-- Include the EXACT phenomenon being studied (e.g. "nausea vomiting pregnancy" not just "pregnancy nausea")
-- Add key synonyms joined with OR where helpful (e.g. "morning sickness OR nausea gravidarum")
-- AVOID overly broad terms that will pull irrelevant results
-- AVOID terms that are only tangentially related
-- Max 15 words
-- Think: what would a medical researcher type into PubMed to find papers on exactly this topic?
-
-Return ONLY this JSON:
-{
-  "searchString": "<precise academic search string>",
-  "isDebatable": <true if science has genuine two sides, false if near-unanimous consensus>,
-  "leftSide":  "<3-5 words: the skeptical/concern/risk side of this topic>",
-  "rightSide": "<3-5 words: the beneficial/positive/supportive side>",
-  "plain":     "<the user's intent rewritten as a clean specific question, e.g. 'What is the typical onset and duration of nausea during pregnancy?'>",
-  "concepts":  ["<key concept 1>", "<key concept 2>", "<key concept 3>"]
-}
-
-Examples of good vs bad searchStrings:
-- BAD: "pregnancy nausea" (too broad, pulls cannabis papers)
-- GOOD: "nausea vomiting pregnancy NVP morning sickness trimester onset prevalence"
-- BAD: "night shifts health" (too vague)
-- GOOD: "shift work disorder circadian rhythm disruption health outcomes workers"
-- BAD: "red meat cancer" (ambiguous)
-- GOOD: "red meat processed meat colorectal cancer risk epidemiology cohort"
-
-For isDebatable:
-- true: veganism health, red meat cancer, coffee mortality, statins side effects
-- false: smoking cancer, vaccines autism, exercise health benefits, morning sickness prevalence`
-    }]
-  });
-
-  const raw     = msg.content[0].text.trim();
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+function parseJSON(text) {
+  const cleaned = text.trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
   return JSON.parse(cleaned);
 }
 
-// ─────────────────────────────────────────────
-//  STEP 2 — Fetch papers from OpenAlex
-// ─────────────────────────────────────────────
-async function fetchPapers(searchString) {
-  const yearFrom = new Date().getFullYear() - 5;
-  const params   = new URLSearchParams({
-    search:     searchString,
-    filter:     `publication_year:${yearFrom}-${new Date().getFullYear()},has_abstract:true`,
-    sort:       'relevance_score:desc',
-    'per-page': '20',
-    select:     'id,title,abstract_inverted_index,publication_year,primary_location,cited_by_count,doi',
-    mailto:     'hello@verity.science'
-  });
-
-  const res  = await fetch(`https://api.openalex.org/works?${params}`);
-  if (!res.ok) throw new Error(`OpenAlex ${res.status}`);
-  const data = await res.json();
-
-  return (data.results || []).map(w => ({
-    title:     stripHtml(w.title || 'Untitled'),
-    abstract:  reconstructAbstract(w.abstract_inverted_index),
-    year:      w.publication_year || '—',
-    journal:   stripHtml(w.primary_location?.source?.display_name || 'Unknown Journal'),
-    citations: w.cited_by_count || 0,
-    doi:       w.doi ? w.doi.replace('https://doi.org/', '') : null
-  })).filter(p => p.abstract.length > 80);
+function dedupe(papers) {
+  const byDoi   = new Map();
+  const byTitle = new Map();
+  const out     = [];
+  for (const p of papers) {
+    const doi   = (p.doi   || '').toLowerCase().trim();
+    const title = (p.title || '').toLowerCase().trim().slice(0, 120);
+    if (doi   && byDoi.has(doi))    continue;
+    if (title && byTitle.has(title)) continue;
+    if (doi)   byDoi.set(doi, true);
+    if (title) byTitle.set(title, true);
+    out.push(p);
+  }
+  return out;
 }
 
-// ─────────────────────────────────────────────
-//  STEP 3 — Quick relevance filter
-//  Drop papers that are clearly off-topic before
-//  spending tokens on full analysis
-// ─────────────────────────────────────────────
-async function filterRelevantPapers(plain, concepts, papers) {
-  if (papers.length === 0) return papers;
+// ─────────────────────────────────────────────────────────────────
+//  DESIGN PRIOR WEIGHTS  (starting prior — bias/precision adjust below)
+// ─────────────────────────────────────────────────────────────────
+const DESIGN_PRIOR = {
+  umbrella:         0.95,
+  meta:             0.90,
+  rct:              0.78,
+  cohort:           0.62,
+  case_control:     0.50,
+  cross_sectional:  0.35,
+  obs:              0.40,
+  narrative_review: 0.15,
+  unknown:          0.38,
+};
 
-  const titlesBlock = papers.map((p, i) =>
-    `[${i}] ${p.title}`
-  ).join('\n');
-
+// ─────────────────────────────────────────────────────────────────
+//  STEP 1 — PICO frame + search term generation
+//
+//  KEY CHANGE FROM v5:
+//  Now generates requiredTerms[] (specific entity word that MUST
+//  appear) and synonyms[] (alternative phrasings). These are used
+//  by hardFilter() as a strict gate — not a soft score.
+// ─────────────────────────────────────────────────────────────────
+async function frameQuery(raw) {
   const msg = await anthropic.messages.create({
-    model:      'claude-sonnet-4-20250514',
-    max_tokens: 300,
-    system:     'You are a relevance filter. Respond ONLY with valid JSON, no markdown.',
-    messages:   [{
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 1100,
+    system: 'You are a PICO-trained systematic review methodologist and biomedical search expert. Respond ONLY with valid JSON. No markdown, no explanation.',
+    messages: [{
       role: 'user',
-      content: `Topic: "${plain}"
-Key concepts: ${concepts.join(', ')}
-
-These papers were returned by a search engine. Some may be off-topic.
-Return ONLY the indices of papers that are DIRECTLY relevant to the topic (not tangentially related).
-Be generous — keep papers if they study a related mechanism or population. Remove only clearly wrong ones.
-
-Papers:
-${titlesBlock}
-
-Return ONLY: { "keep": [0, 1, 3, ...] }  (array of indices to keep)`
-    }]
-  });
-
-  const raw     = msg.content[0].text.trim();
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-  const { keep } = JSON.parse(cleaned);
-
-  return keep.map(i => papers[i]).filter(Boolean);
-}
-
-// ─────────────────────────────────────────────
-//  STEP 4 — Claude analyses the papers
-// ─────────────────────────────────────────────
-async function analyzePapers(plain, papers, queryMeta) {
-  const papersBlock = papers.map((p, i) => [
-    `[${i + 1}]`,
-    `DOI: ${p.doi || 'N/A'}`,
-    `Title: ${p.title}`,
-    `Journal: ${p.journal} (${p.year}) · ${p.citations} citations`,
-    `Abstract: ${p.abstract}`
-  ].join('\n')).join('\n\n─────\n\n');
-
-  const msg = await anthropic.messages.create({
-    model:      'claude-sonnet-4-20250514',
-    max_tokens: 2000,
-    system:     'You are a rigorous scientific literature analyst. Respond ONLY with valid JSON, no markdown.',
-    messages:   [{
-      role: 'user',
-      content: `Analyze these ${papers.length} peer-reviewed papers on: "${plain}"
-
-The two sides of this debate are:
-- Concern/skeptical side: "${queryMeta.leftSide}"
-- Supportive/positive side: "${queryMeta.rightSide}"
-- Is this genuinely debated in science? ${queryMeta.isDebatable}
-
-PAPERS:
-${papersBlock}
+      content: `Frame this query as a structured evidence synthesis problem: "${raw}"
 
 Return ONLY this JSON:
 {
-  "summary": "<2-3 paragraph HTML. Use <strong> for key terms. Be specific: cite effect sizes, sample sizes, study types. Honest about uncertainty and evidence quality. No bullet points.>",
-  "debate": {
-    "leftLabel":  "${queryMeta.leftSide}",
-    "leftDesc":   "<8 word description of concern side>",
-    "rightLabel": "${queryMeta.rightSide}",
-    "rightDesc":  "<8 word description of supportive side>",
-    "leftPct":    <integer 0-100>,
-    "rightPct":   <integer 0-100>,
-    "isDebated":  ${queryMeta.isDebatable}
+  "plain": "<the exact research question, specific and answerable>",
+  "population":    "<who is being studied>",
+  "intervention":  "<the specific exposure/treatment/substance being studied>",
+  "comparator":    "<what it is compared against>",
+  "outcomes":      ["<primary outcome 1>", "<primary outcome 2>", "<primary outcome 3>"],
+
+  "requiredTerms": ["<the specific word that MUST appear in any relevant paper's title or abstract>"],
+  "synonyms":      ["<alternative spelling or phrasing that is equally acceptable>", "..."],
+
+  "searchTerms": {
+    "semantic":  "<natural language, 4-7 words, topic-specific for Semantic Scholar>",
+    "pubmed":    "<keyword query for PubMed esearch, use AND/OR, no field tags, no brackets around single terms>",
+    "openAlex":  "<5-8 specific keywords>"
   },
-  "stances": [
-    { "doi": "<doi or paper-N>", "stance": "<for|against|mixed>" }
+
+  "gdeltQuery":    "<2-4 word news query>",
+  "isDebatable":   <true if real scientific debate, false if near-consensus>,
+  "leftClaim":     "<3-6 words: the skeptical/concern/null/harmful position>",
+  "leftDesc":      "<8-12 words describing it>",
+  "rightClaim":    "<3-6 words: the beneficial/positive/effective position>",
+  "rightDesc":     "<8-12 words describing it>",
+  "domain":        "<nutrition|pharmacology|exercise_science|mental_health|environmental|clinical|other>"
+}
+
+CRITICAL RULES FOR requiredTerms and synonyms:
+requiredTerms must be the SPECIFIC IDENTIFYING WORD(S) for the intervention/topic.
+This word must appear in virtually every directly relevant paper.
+It is used as a HARD GATE: if none of (requiredTerms ∪ synonyms) appear in a paper → the paper is rejected.
+
+Examples:
+- "creatine muscle" → requiredTerms: ["creatine"], synonyms: ["creatine monohydrate", "creatine phosphate", "phosphocreatine"]
+- "carnivore diet"  → requiredTerms: ["carnivore"], synonyms: ["all-meat diet", "meat-only diet", "zero carb diet", "zero-carb"]
+- "vegan diet"      → requiredTerms: ["vegan"],     synonyms: ["plant-based diet", "plant based diet", "whole food plant"]
+- "statins cholesterol" → requiredTerms: ["statin"], synonyms: ["atorvastatin", "rosuvastatin", "simvastatin", "hydroxymethylglutaryl"]
+- "coffee cancer"   → requiredTerms: ["coffee"],    synonyms: ["caffeine", "coffeehouse", "espresso"]
+- "intermittent fasting" → requiredTerms: ["fasting"], synonyms: ["intermittent fasting", "time-restricted", "time restricted eating", "16:8", "alternate day fasting"]
+- "omega-3 heart"   → requiredTerms: ["omega-3"],   synonyms: ["omega 3", "n-3 fatty", "fish oil", "eicosapentaenoic", "EPA", "DHA"]
+
+CRITICAL RULES FOR searchTerms:
+- semantic: natural language, NOT a question, just key terms. "creatine supplementation muscle strength performance"
+- pubmed: simple AND/OR without MeSH field tags. "creatine AND (muscle OR strength OR hypertrophy OR performance)"
+- DO NOT use [MeSH Terms] or [Title/Abstract] field tags — they silently fail if wrong
+
+CRITICAL RULES FOR isDebatable:
+- false for: smoking causes cancer, vaccines are safe and effective, exercise improves health, creatine improves strength (near-consensus)
+- true for: carnivore diet long-term safety, coffee and mortality, red meat cancer risk (genuine debate)`
+    }]
+  });
+  return parseJSON(msg.content[0].text);
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  STEP 2 — Three parallel sources
+// ─────────────────────────────────────────────────────────────────
+
+// SOURCE A: Semantic Scholar — handles natural language, returns citation counts
+async function fetchSemanticScholar(query, limit = 25) {
+  const yearFrom = new Date().getFullYear() - 10;
+  const url = 'https://api.semanticscholar.org/graph/v1/paper/search?' +
+    new URLSearchParams({
+      query,
+      limit: String(limit),
+      fields: 'title,abstract,year,journal,citationCount,externalIds,publicationTypes',
+      publicationDateOrYear: `${yearFrom}-`,
+    });
+
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(14000),
+    headers: { 'User-Agent': 'Verity/6.0 (hello@verity.science)' }
+  });
+
+  if (res.status === 429) { console.warn('  S2: rate limited'); return []; }
+  if (!res.ok) throw new Error(`S2 ${res.status}: ${await res.text().catch(() => '')}`);
+  const data = await res.json();
+
+  return (data.data || [])
+    .filter(p => p.abstract && p.abstract.length > 80)
+    .map(p => {
+      const types  = p.publicationTypes || [];
+      const isMeta = types.some(t => ['Review', 'Meta-Analysis', 'SystematicReview'].includes(t));
+      const isRCT  = types.some(t => t === 'ClinicalTrial');
+      return {
+        title:     stripHtml(p.title || ''),
+        abstract:  p.abstract,
+        year:      p.year || 2020,
+        journal:   p.journal?.name || 'Unknown',
+        doi:       p.externalIds?.DOI    || null,
+        pmid:      p.externalIds?.PubMed || null,
+        citations: p.citationCount || 0,
+        design:    isMeta ? 'meta' : isRCT ? 'rct' : 'unknown',
+        source:    'semantic',
+      };
+    });
+}
+
+// SOURCE B: PubMed — simple keyword search, proper XML parsing
+async function fetchPubMed(term, maxResults = 20, yearsBack = 10) {
+  const minDate = (new Date().getFullYear() - yearsBack) + '/01/01';
+
+  const sRes = await fetch(
+    'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?' +
+    new URLSearchParams({
+      db: 'pubmed', term, retmax: String(maxResults),
+      retmode: 'json', sort: 'relevance',
+      mindate: minDate, datetype: 'pdat',
+      tool: 'verity', email: 'hello@verity.science',
+    }),
+    { signal: AbortSignal.timeout(12000) }
+  );
+  if (!sRes.ok) throw new Error(`PubMed search ${sRes.status}`);
+  const sData = await sRes.json();
+  const ids = sData.esearchresult?.idlist || [];
+  if (!ids.length) return [];
+
+  const fRes = await fetch(
+    'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?' +
+    new URLSearchParams({
+      db: 'pubmed', id: ids.join(','),
+      retmode: 'xml', rettype: 'abstract',
+      tool: 'verity', email: 'hello@verity.science',
+    }),
+    { signal: AbortSignal.timeout(14000) }
+  );
+  if (!fRes.ok) throw new Error(`PubMed fetch ${fRes.status}`);
+  return parsePubMedXML(await fRes.text());
+}
+
+function parsePubMedXML(xml) {
+  const papers = [];
+  for (const m of xml.matchAll(/<PubmedArticle>([\s\S]*?)<\/PubmedArticle>/g)) {
+    const a = m[1];
+    const titleM = a.match(/<ArticleTitle[^>]*>([\s\S]*?)<\/ArticleTitle>/);
+    const title  = titleM ? stripHtml(titleM[1]).replace(/\.$/, '') : '';
+    if (!title) continue;
+
+    const abstract = [...a.matchAll(/<AbstractText[^>]*>([\s\S]*?)<\/AbstractText>/g)]
+      .map(x => stripHtml(x[1])).join(' ').trim();
+    if (abstract.length < 80) continue;
+
+    const yearM  = a.match(/<PubDate>[\s\S]*?<Year>(\d{4})<\/Year>/);
+    const jM     = a.match(/<ISOAbbreviation>([\s\S]*?)<\/ISOAbbreviation>/) ||
+                   a.match(/<Title>([\s\S]*?)<\/Title>/);
+    const doiM   = a.match(/<ArticleId IdType="doi">([\s\S]*?)<\/ArticleId>/);
+    const pmidM  = a.match(/<PMID[^>]*>(\d+)<\/PMID>/);
+    const pubTypes = [...a.matchAll(/<PublicationType[^>]*>([\s\S]*?)<\/PublicationType>/g)]
+      .map(x => x[1].trim());
+
+    const isMeta = pubTypes.some(t => /systematic review|meta.?analysis/i.test(t));
+    const isRCT  = pubTypes.some(t => /randomized controlled trial|clinical trial/i.test(t));
+    const isCohort = pubTypes.some(t => /observational|cohort/i.test(t));
+
+    papers.push({
+      title, abstract,
+      year:      yearM ? parseInt(yearM[1]) : 2020,
+      journal:   jM ? stripHtml(jM[1]) : 'Unknown',
+      doi:       doiM  ? doiM[1].trim()  : null,
+      pmid:      pmidM ? pmidM[1]        : null,
+      citations: 0,
+      design:    isMeta ? 'meta' : isRCT ? 'rct' : isCohort ? 'cohort' : 'unknown',
+      source:    'pubmed',
+    });
+  }
+  return papers;
+}
+
+// SOURCE C: OpenAlex — broadest coverage
+async function fetchOpenAlex(query, limit = 15) {
+  const yearFrom = new Date().getFullYear() - 10;
+  const params = new URLSearchParams({
+    search:     query,
+    filter:     `publication_year:${yearFrom}-${new Date().getFullYear()},has_abstract:true`,
+    sort:       'relevance_score:desc',
+    'per-page': String(limit),
+    select:     'id,title,abstract_inverted_index,publication_year,primary_location,cited_by_count,doi,type',
+    mailto:     'hello@verity.science',
+  });
+
+  const res = await fetch(`https://api.openalex.org/works?${params}`,
+    { signal: AbortSignal.timeout(12000) });
+  if (!res.ok) throw new Error(`OpenAlex ${res.status}`);
+  const data = await res.json();
+
+  return (data.results || []).map(w => {
+    const pos = [];
+    if (w.abstract_inverted_index)
+      for (const [word, locs] of Object.entries(w.abstract_inverted_index))
+        for (const l of locs) pos[l] = word;
+    const abstract = pos.filter(Boolean).join(' ').trim();
+    if (abstract.length < 80) return null;
+    const isReview = (w.type || '').toLowerCase().includes('review');
+    return {
+      title:     stripHtml(w.title || ''),
+      abstract,
+      year:      w.publication_year || 2020,
+      journal:   stripHtml(w.primary_location?.source?.display_name || 'Unknown'),
+      doi:       w.doi ? w.doi.replace('https://doi.org/', '') : null,
+      pmid:      null,
+      citations: w.cited_by_count || 0,
+      design:    isReview ? 'meta' : 'unknown',
+      source:    'openalex',
+    };
+  }).filter(Boolean);
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  STEP 3 — HARD DETERMINISTIC FILTER
+//
+//  THE FIX: at least one of (requiredTerms ∪ synonyms) MUST appear
+//  in the paper's title + abstract. No exceptions. No LLM.
+//
+//  This is the exact bug that produced JAK/STAT for creatine:
+//    v5 required any 2 words from plain question
+//    "building" + "muscle" appeared in JAK/STAT paper → passed
+//    "creatine" never needed to appear → bug
+//
+//  v6 requires the specific entity word → JAK/STAT has no "creatine"
+//  → rejected immediately regardless of citation count.
+// ─────────────────────────────────────────────────────────────────
+function hardFilter(papers, frame) {
+  const required = (frame.requiredTerms || []).map(t => t.toLowerCase().trim());
+  const synonyms = (frame.synonyms      || []).map(t => t.toLowerCase().trim());
+  const allTerms = [...new Set([...required, ...synonyms])].filter(t => t.length > 1);
+
+  if (allTerms.length === 0) {
+    // Safety: if Claude failed to generate terms, use intervention word
+    const fallback = (frame.intervention || '').toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    allTerms.push(...fallback);
+  }
+
+  const filtered = papers.filter(p => {
+    const text = (p.title + ' ' + p.abstract).toLowerCase();
+    // HARD RULE: at least one required/synonym term must appear
+    return allTerms.some(term => text.includes(term));
+  });
+
+  console.log(`  Filter: ${papers.length} → ${filtered.length} papers`);
+  console.log(`  Required terms: [${allTerms.slice(0,5).join(', ')}]`);
+
+  // Log rejections for the first few to verify correctness
+  const rejected = papers.filter(p => {
+    const text = (p.title + ' ' + p.abstract).toLowerCase();
+    return !allTerms.some(term => text.includes(term));
+  }).slice(0, 3);
+  if (rejected.length) {
+    console.log('  Rejected (sample):');
+    rejected.forEach(p => console.log(`    ✗ "${p.title.slice(0, 70)}"`));
+  }
+
+  return filtered;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  STEP 4 — Claude: structured outcome extraction
+//  Claude's ONLY role: extract what each paper actually found.
+//  No scoring. No percentages. Pure extraction.
+// ─────────────────────────────────────────────────────────────────
+async function extractOutcomes(papers, frame) {
+  const BATCH_SIZE = 8;
+  const allExtractions = [];
+
+  for (let i = 0; i < papers.length; i += BATCH_SIZE) {
+    const batch = papers.slice(i, i + BATCH_SIZE);
+    const block = batch.map((p, j) => {
+      const ref = p.doi  ? `doi:${p.doi}`  :
+                  p.pmid ? `pmid:${p.pmid}` :
+                  `paper-${i + j + 1}`;
+      return `[${i + j + 1}] REF:${ref}\nTitle: ${p.title}\nJournal: ${p.journal} (${p.year})\nAbstract: ${p.abstract.slice(0, 800)}`;
+    }).join('\n\n───\n\n');
+
+    const msg = await anthropic.messages.create({
+      model:      'claude-sonnet-4-20250514',
+      max_tokens: 2400,
+      system:     'Systematic review data extractor. Extract exactly what is stated in each abstract. Do not add interpretation beyond what is written. Respond ONLY with valid JSON.',
+      messages: [{
+        role: 'user',
+        content: `Extract structured outcome data from these papers.
+
+Query: "${frame.plain}"
+Left claim: "${frame.leftClaim}"
+Right claim: "${frame.rightClaim}"
+Outcomes of interest: ${(frame.outcomes || []).join(', ')}
+
+PAPERS:
+${block}
+
+Return ONLY:
+{
+  "extractions": [
+    {
+      "ref":                "<REF value from paper header>",
+      "design":             "<umbrella|meta|rct|cohort|cross_sectional|case_control|narrative_review|obs|unknown>",
+      "sampleSize":         <integer total N or null if not stated>,
+      "populationMatch":    <0.0-1.0: 1.0=exactly the population the query is about, 0.5=related, 0.1=different population>,
+      "interventionMatch":  <0.0-1.0: 1.0=paper directly studies the exact intervention in the query, 0.5=related, 0.1=tangential>,
+      "fundingConcern":     <true only if abstract explicitly states industry funding with clear commercial conflict>,
+      "outcomes": [
+        {
+          "name":      "<outcome name>",
+          "direction": "<supports_right|supports_left|neutral|mixed>",
+          "magnitude": <0.0-1.0: extract from effect sizes if mentioned. 0=null/trivial, 0.3=small, 0.5=moderate, 0.8=large, 1.0=very large>,
+          "precision": <0.0-1.0: 0.9=large n+narrow CI stated, 0.6=moderate n, 0.3=small n or wide CI, 0.1=no uncertainty stated>,
+          "note":      "<one sentence: the exact finding with numbers if available, e.g. 'Creatine increased lean mass by 1.37 kg (95% CI 0.97-1.77) vs placebo'>"
+        }
+      ]
+    }
   ]
 }
-leftPct + rightPct MUST equal 100. Calibrate based on actual paper content, not assumptions.`
+
+DESIGN CLASSIFICATION RULES (be accurate):
+- meta: "systematic review", "meta-analysis", "pooled analysis" in abstract
+- rct: "randomized", "randomised", "double-blind", "placebo-controlled"
+- cohort: "prospective cohort", "longitudinal", "follow-up study"
+- cross_sectional: "cross-sectional", "survey"
+- obs: "observational" without specifying type
+- narrative_review: "review" without systematic/meta
+
+DIRECTION RULES:
+- supports_right: paper shows the intervention has positive/beneficial effects on this outcome
+- supports_left: paper shows harm, null effect, or that the concern is valid
+- neutral: no difference found, p>0.05 on primary outcome
+- mixed: paper reports both positive and negative effects on same outcome
+
+MAGNITUDE: use stated effect sizes. If none stated, use language: "significantly improved/reduced" → 0.6, "modest improvement" → 0.35, "no significant difference" → 0.05, "trend toward" → 0.15`
+      }]
+    });
+
+    try {
+      const parsed = parseJSON(msg.content[0].text);
+      allExtractions.push(...(parsed.extractions || []));
+    } catch (e) {
+      console.warn(`  Extraction batch ${i}–${i + BATCH_SIZE} failed:`, e.message);
+    }
+  }
+
+  return allExtractions;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  STEP 5 — DETERMINISTIC SCORING ENGINE
+//  No LLM below this line.
+//  Formula: w_i = D×B×P×R×U | c_i = S×M×w_i
+// ─────────────────────────────────────────────────────────────────
+
+function biasWeight(design, fundingConcern) {
+  const base = {
+    umbrella:         0.90,
+    meta:             0.85,
+    rct:              0.80,
+    cohort:           0.70,
+    case_control:     0.60,
+    cross_sectional:  0.48,
+    obs:              0.55,
+    narrative_review: 0.18,
+    unknown:          0.52,
+  }[design] || 0.52;
+  return fundingConcern ? base * 0.68 : base;
+}
+
+function precisionWeight(sampleSize, abstractPrecision) {
+  // Weight from extracted precision score, adjusted by sample size if known
+  const base = Math.max(0.1, Math.min(1.0, abstractPrecision || 0.5));
+  if (!sampleSize) return base * 0.88; // slight penalty for unstated N
+  if (sampleSize >= 10000) return Math.min(1.0, base + 0.08);
+  if (sampleSize >= 1000)  return base;
+  if (sampleSize >= 200)   return Math.max(0.15, base - 0.12);
+  if (sampleSize >= 50)    return Math.max(0.10, base - 0.22);
+  return Math.max(0.08, base - 0.35); // very small study
+}
+
+function directionScore(direction) {
+  return { supports_right: 1.0, supports_left: -1.0, neutral: 0.0, mixed: 0.15 }[direction] ?? 0.0;
+}
+
+function computeConsensus(extractions) {
+  if (!extractions.length) {
+    return { score: 0, rightPct: 50, leftPct: 50, certainty: 'Very low', contradiction: 0, contributions: [], evidenceCount: 0 };
+  }
+
+  // Independence weights: penalise papers from the same design/year cluster
+  // (proxy for overlapping research families)
+  const familyCounts = new Map();
+  const independenceWeight = extractions.map(ex => {
+    const key = `${ex.design || 'unk'}_${Math.floor(((ex.year || 2020) - 2000) / 3)}`;
+    const n = (familyCounts.get(key) || 0) + 1;
+    familyCounts.set(key, n);
+    // First paper from family = 1.0, second = 0.70, third+ = 0.45
+    return n === 1 ? 1.0 : n === 2 ? 0.70 : 0.45;
+  });
+
+  const contributions = [];
+  let weightedSum  = 0;
+  let totalWeight  = 0;
+  let leftMass     = 0;
+  let rightMass    = 0;
+  let qualitySum   = 0;
+  let qualityCount = 0;
+
+  extractions.forEach((ex, idx) => {
+    if (!ex.outcomes?.length) return;
+
+    const D = DESIGN_PRIOR[ex.design] || DESIGN_PRIOR.unknown;
+    const B = biasWeight(ex.design, ex.fundingConcern);
+    const U = independenceWeight[idx];
+
+    ex.outcomes.forEach(outcome => {
+      if (!outcome || !outcome.direction || outcome.direction === 'unclear') return;
+
+      const S  = directionScore(outcome.direction);
+      const M  = Math.max(0.05, Math.min(1.0, outcome.magnitude  || 0.30));
+      const P  = precisionWeight(ex.sampleSize, outcome.precision || 0.50);
+      // Relevance: weighted combination of population and intervention match
+      const R  = Math.max(0.05, Math.min(1.0,
+        (ex.populationMatch   || 0.5) * 0.40 +
+        (ex.interventionMatch || 0.5) * 0.60
+      ));
+
+      const w = D * B * P * R * U;
+      const c = S * M * w;
+
+      weightedSum  += c;
+      totalWeight  += Math.abs(w * M);
+      qualitySum   += w;
+      qualityCount += 1;
+
+      if (S < -0.1) leftMass  += Math.abs(c);
+      if (S >  0.1) rightMass += Math.abs(c);
+
+      contributions.push({
+        ref:         ex.ref,
+        design:      ex.design,
+        outcome:     outcome.name,
+        direction:   outcome.direction,
+        S, M, D, B, P, R, U,
+        weight:      parseFloat(w.toFixed(4)),
+        contribution: parseFloat(c.toFixed(4)),
+        note:        outcome.note,
+      });
+    });
+  });
+
+  // Bounded consensus score [-100, +100]
+  const score = totalWeight > 0 ? Math.round(100 * weightedSum / totalWeight) : 0;
+
+  // Convert to rightPct: 0→0%, +100→100%, centre at 50%
+  const rightPct = Math.min(99, Math.max(1, Math.round((score + 100) / 2)));
+  const leftPct  = 100 - rightPct;
+
+  // Contradiction index (Gini-style): 0 = one-sided, 1 = perfectly split
+  const totalMass    = leftMass + rightMass || 1;
+  const contradiction = parseFloat((2 * leftMass * rightMass / (totalMass * totalMass)).toFixed(3));
+
+  // Certainty: function of quality × agreement × evidence volume
+  const meanQuality = qualityCount > 0 ? qualitySum / qualityCount : 0;
+  const agreement   = 1 - contradiction;
+  const volume      = Math.min(1.0, qualityCount / 12);
+  const rawCertainty = meanQuality * Math.pow(agreement, 0.5) * Math.pow(volume, 0.4);
+
+  const certainty =
+    rawCertainty > 0.58 && qualityCount >= 8  ? 'High'     :
+    rawCertainty > 0.36 && qualityCount >= 4  ? 'Moderate' :
+    rawCertainty > 0.18                        ? 'Low'      : 'Very low';
+
+  // Top evidence drivers sorted by absolute contribution
+  const topDrivers = [...contributions]
+    .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
+    .slice(0, 6);
+
+  return { score, rightPct, leftPct, certainty, contradiction, evidenceCount: qualityCount, topDrivers, contributions };
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  STEP 6 — Plain-language synthesis
+//  Claude receives SCORED OUTPUT and writes prose.
+//  It cannot invent numbers — they all come from the scoring engine.
+// ─────────────────────────────────────────────────────────────────
+async function synthesize(frame, papers, scoring) {
+  const drivers = scoring.topDrivers.map(d =>
+    `• [${d.design.toUpperCase()}] ${d.outcome}: ${d.direction} — ${d.note}`
+  ).join('\n');
+
+  const paperList = papers.slice(0, 12).map((p, i) =>
+    `[${i+1}] ${p.title} (${p.journal}, ${p.year}, design: ${p.design || 'unknown'})`
+  ).join('\n');
+
+  const msg = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514', max_tokens: 1800,
+    system: 'Scientific synthesis writer. Write clean HTML prose. Never use bullet points. Be specific about what the evidence shows and does not show. Proportion uncertainty to the certainty level given.',
+    messages: [{
+      role: 'user',
+      content: `Write a plain-language evidence synthesis for: "${frame.plain}"
+
+Deterministic scoring results (these are computed facts, not your opinion):
+- Consensus direction: ${scoring.score > 5 ? 'leans toward ' + frame.rightClaim : scoring.score < -5 ? 'leans toward ' + frame.leftClaim : 'genuinely mixed or neutral'}
+- Raw score: ${scoring.score} (scale: -100 = strongly left, 0 = neutral, +100 = strongly right)
+- Certainty level: ${scoring.certainty}
+- Contradiction index: ${scoring.contradiction.toFixed(2)} (0=one-sided, 1=evenly split)
+- Scored outcome results: ${scoring.evidenceCount}
+
+Top evidence drivers (highest-weighted findings):
+${drivers}
+
+Papers analysed:
+${paperList}
+
+Write 2–3 paragraphs of HTML:
+- Paragraph 1: What the strongest evidence actually shows (cite specific papers, effect sizes, sample sizes from drivers above)
+- Paragraph 2: Limitations, contradictions, or evidence gaps — proportional to certainty (${scoring.certainty})
+- Paragraph 3: What this evidence does NOT establish, and what would change the assessment
+
+Rules:
+- Use <strong> only for key terms and notable findings
+- NEVER use bullet points or lists
+- NEVER invent numbers not present in the drivers above
+- If certainty is Low or Very low, be explicit about that uncertainty
+- If contradiction > 0.3, explicitly name the genuine disagreement`
     }]
   });
 
-  const raw     = msg.content[0].text.trim();
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-  const parsed  = JSON.parse(cleaned);
-  if (parsed.debate) parsed.debate.rightPct = 100 - parsed.debate.leftPct;
-  return parsed;
+  return msg.content[0].text.trim();
 }
 
-// ─────────────────────────────────────────────
-//  ANALYZE ENDPOINT (used by frontend)
-// ─────────────────────────────────────────────
-app.post('/api/analyze', async (req, res) => {
-  const { query, papers } = req.body;
-  if (!query)  return res.status(400).json({ error: 'query is required' });
-  if (!papers || !papers.length) return res.status(400).json({ error: 'papers are required' });
-
+// ─────────────────────────────────────────────────────────────────
+//  MEDIA: GDELT + framing
+// ─────────────────────────────────────────────────────────────────
+async function fetchGDELT(query) {
+  const start = new Date();
+  start.setFullYear(start.getFullYear() - 2);
+  const sd = start.toISOString().slice(0,10).replace(/-/g,'') + '000000';
+  const params = new URLSearchParams({
+    query: `"${query}" sourcelang:english`,
+    mode: 'artlist', maxrecords: '20',
+    format: 'json', STARTDATETIME: sd, sort: 'datedesc'
+  });
   try {
-    const queryMeta = await optimizeQuery(query);
-    console.log(`Analyze: "${query}" → "${queryMeta.searchString}"`);
-
-    const filtered = await filterRelevantPapers(queryMeta.plain, queryMeta.concepts || [], papers);
-    if (filtered.length < 3) {
-      return res.status(404).json({ error: `Only ${filtered.length} relevant paper(s) found. Try a broader search term.` });
-    }
-
-    const analysis = await analyzePapers(queryMeta.plain, filtered, queryMeta);
-    res.json(analysis);
-  } catch (err) {
-    console.error('Analyze error:', err.message);
-    res.status(500).json({ error: err.message });
+    const res = await fetch(
+      `https://api.gdeltproject.org/api/v2/doc/doc?${params}`,
+      { signal: AbortSignal.timeout(8000) }
+    );
+    if (!res.ok) throw new Error(`GDELT ${res.status}`);
+    const data = await res.json();
+    return (data.articles || [])
+      .filter(a => a.title?.length > 20).slice(0, 15)
+      .map(a => ({
+        title:  stripHtml(a.title),
+        outlet: a.domain || 'Unknown',
+        url:    a.url,
+        year:   a.seendate ? parseInt(a.seendate.slice(0,4)) : 2024,
+        weight: 3,
+      }));
+  } catch (e) {
+    console.warn('  GDELT:', e.message);
+    return [];
   }
-});
+}
 
-// ─────────────────────────────────────────────
-//  SEARCH ENDPOINT (all-in-one)
-// ─────────────────────────────────────────────
+async function analyzeMedia(plain, articles, frame) {
+  if (!articles.length) return { stances: [], leftPct: 50, rightPct: 50 };
+  const block = articles.map((a, i) => `[${i}] "${a.title}" — ${a.outlet}`).join('\n');
+  const msg = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514', max_tokens: 1000,
+    system: 'Media framing analyst. Respond ONLY with valid JSON.',
+    messages: [{
+      role: 'user',
+      content: `Topic: "${plain}"\nConcern side: "${frame.leftClaim}" | Benefit side: "${frame.rightClaim}"\n\n${block}\n\nReturn ONLY:\n{\n  "stances": [{"index":<n>,"stance":"<pro|con|neutral>","framing":"<one specific sentence>","weight":<1-4>}],\n  "leftPct":<0-100>,\n  "rightPct":<0-100, sums to 100>\n}`
+    }]
+  });
+  const p = parseJSON(msg.content[0].text);
+  if (p.leftPct != null) p.rightPct = 100 - p.leftPct;
+  return p;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  MAIN ENDPOINT
+// ─────────────────────────────────────────────────────────────────
 app.post('/api/search', async (req, res) => {
   const { query } = req.body;
-  if (!query) return res.status(400).json({ error: 'query is required' });
+  if (!query?.trim()) return res.status(400).json({ error: 'query is required' });
+
+  const t0 = Date.now();
+  console.log(`\n${'═'.repeat(60)}`);
+  console.log(`[${new Date().toISOString()}] "${query}"`);
 
   try {
-    // 1. Understand query
-    const queryMeta = await optimizeQuery(query);
-    console.log(`Query: "${query}" → "${queryMeta.searchString}"`);
+    // ── 1. Frame the query ────────────────────────────────────────
+    const frame = await frameQuery(query);
+    console.log(`  Plain:     "${frame.plain}"`);
+    console.log(`  Required:  [${(frame.requiredTerms || []).join(', ')}]`);
+    console.log(`  Synonyms:  [${(frame.synonyms || []).slice(0,4).join(', ')}]`);
+    console.log(`  S2 query:  "${frame.searchTerms?.semantic}"`);
+    console.log(`  PM query:  "${frame.searchTerms?.pubmed}"`);
 
-    // 2. Fetch papers
-    const rawPapers = await fetchPapers(queryMeta.searchString);
+    // ── 2. Fetch all sources + GDELT in parallel ──────────────────
+    const [s2Res, pmRes, oaRes, gdeltRes] = await Promise.allSettled([
+      fetchSemanticScholar(frame.searchTerms?.semantic || query, 25),
+      fetchPubMed(frame.searchTerms?.pubmed || query, 20, 10),
+      fetchOpenAlex(frame.searchTerms?.openAlex || query, 15),
+      fetchGDELT(frame.gdeltQuery || query.split(' ').slice(0,3).join(' ')),
+    ]);
+
+    const log = (r, name) => r.status === 'fulfilled'
+      ? `${name}:${r.value.length}`
+      : `${name}:ERR(${r.reason?.message?.slice(0,30)})`;
+    console.log(`  Sources: ${log(s2Res,'S2')} ${log(pmRes,'PM')} ${log(oaRes,'OA')} ${log(gdeltRes,'GDELT')}`);
+
+    const rawPapers = dedupe([
+      ...(s2Res.status    === 'fulfilled' ? s2Res.value    : []),
+      ...(pmRes.status    === 'fulfilled' ? pmRes.value    : []),
+      ...(oaRes.status    === 'fulfilled' ? oaRes.value    : []),
+    ]);
+    const rawMedia = gdeltRes.status === 'fulfilled' ? gdeltRes.value : [];
+
+    console.log(`  Unique raw: ${rawPapers.length} papers`);
+
     if (rawPapers.length === 0) {
-      return res.status(404).json({ error: 'No papers found. Try a different search term.' });
+      return res.status(404).json({
+        error: `No papers returned from any database for "${query}". All three APIs failed or returned empty results. Check search terms.`
+      });
     }
 
-    // 3. Filter for relevance
-    const papers = await filterRelevantPapers(queryMeta.plain, queryMeta.concepts || [], rawPapers);
+    // ── 3. HARD DETERMINISTIC FILTER ─────────────────────────────
+    const filtered = hardFilter(rawPapers, frame);
+
+    // If filter is too aggressive (< 4 papers), broaden:
+    // fall back to requiring ANY of the required/synonym terms in title only
+    let papers;
+    if (filtered.length < 4) {
+      console.warn(`  ⚠ Hard filter too strict (${filtered.length}), trying title-only fallback`);
+      const allTerms = [...(frame.requiredTerms || []), ...(frame.synonyms || [])]
+        .map(t => t.toLowerCase());
+      const titleFiltered = rawPapers.filter(p =>
+        allTerms.some(t => p.title.toLowerCase().includes(t))
+      );
+      console.log(`  Title-only fallback: ${titleFiltered.length} papers`);
+      papers = titleFiltered.length >= 4 ? titleFiltered : filtered;
+    } else {
+      papers = filtered;
+    }
+
     if (papers.length < 3) {
-      return res.status(404).json({ error: `Only ${papers.length} relevant paper(s) found on this topic. Try a broader search term.` });
+      return res.status(404).json({
+        error: `Only ${papers.length} relevant paper(s) found after filtering across all three databases. "${query}" may be too niche, use non-standard terminology, or be a very new topic. Try: "${frame.intervention}" alone, or check the spelling.`
+      });
     }
 
-    // 4. Analyse
-    const analysis = await analyzePapers(queryMeta.plain, papers, queryMeta);
+    // Cap at 30 best papers (prioritise metas/RCTs and most cited)
+    papers = papers
+      .sort((a, b) => {
+        const designScore = d => ({ umbrella:5, meta:4, rct:3, cohort:2, unknown:1 }[d]||1);
+        return (designScore(b.design) * 2 + (b.citations || 0) * 0.001) -
+               (designScore(a.design) * 2 + (a.citations || 0) * 0.001);
+      })
+      .slice(0, 30);
 
-    res.json({ queryMeta, papers, analysis });
+    console.log(`  Final: ${papers.length} papers for analysis`);
+    console.log(`  Design mix: ${papers.reduce((a,p) => { a[p.design]=(a[p.design]||0)+1; return a; }, {})}`);
+
+    // ── 4. Extract outcomes + analyse media in parallel ───────────
+    console.log('  Extracting outcomes...');
+    const [extractions, mediaAnalysis] = await Promise.all([
+      extractOutcomes(papers, frame),
+      analyzeMedia(frame.plain, rawMedia, frame),
+    ]);
+    console.log(`  Extracted: ${extractions.length} outcome sets`);
+
+    // Attach extraction data back to papers for the frontend
+    papers.forEach(p => {
+      const ex = extractions.find(e => {
+        if (!e.ref) return false;
+        if (p.doi  && e.ref.toLowerCase().includes(p.doi.toLowerCase()))  return true;
+        if (p.pmid && e.ref.toLowerCase().includes(p.pmid.toLowerCase())) return true;
+        return false;
+      });
+      if (ex) {
+        p.design     = ex.design    || p.design;
+        p.sampleSize = ex.sampleSize;
+        p.extractedOutcomes = ex.outcomes;
+      }
+    });
+
+    // ── 5. Deterministic scoring ──────────────────────────────────
+    const scoring = computeConsensus(extractions);
+    console.log(`  Score: ${scoring.score}/100 | Certainty: ${scoring.certainty} | Contradiction: ${scoring.contradiction} | n=${scoring.evidenceCount}`);
+
+    // ── 6. Synthesis (Claude writes prose from scored data) ───────
+    console.log('  Synthesizing...');
+    const summary = await synthesize(frame, papers, scoring);
+
+    // ── 7. Build stance list for frontend strip ───────────────────
+    const stances = extractions.map(ex => {
+      const topOutcome = (ex.outcomes || [])
+        .sort((a,b) => (b.magnitude||0) - (a.magnitude||0))[0];
+      return {
+        ref:    ex.ref,
+        stance: topOutcome?.direction === 'supports_right' ? 'for'     :
+                topOutcome?.direction === 'supports_left'  ? 'against' : 'mixed',
+        type:   ex.design === 'meta' ? 'meta' :
+                ex.design === 'rct'  ? 'rct'  :
+                ex.design === 'cohort' ? 'cohort' : 'obs',
+        note:   topOutcome?.note || '',
+      };
+    });
+
+    const mediaStances = rawMedia.map((m, i) => {
+      const s = mediaAnalysis.stances?.find(st => st.index === i);
+      return { ...m, stance: s?.stance || 'neutral', framing: s?.framing || '', weight: s?.weight || 3 };
+    });
+
+    const mediaDivergence = Math.abs((mediaAnalysis.rightPct ?? 50) - scoring.rightPct);
+    const sourceCounts = papers.reduce((a,p) => { a[p.source||'?']=(a[p.source||'?']||0)+1; return a; }, {});
+
+    console.log(`  ✓ Done in ${Date.now()-t0}ms | sources: ${JSON.stringify(sourceCounts)}`);
+    console.log(`${'═'.repeat(60)}`);
+
+    res.json({
+      queryMeta: {
+        plain:       frame.plain,
+        leftSide:    frame.leftClaim,
+        leftDesc:    frame.leftDesc,
+        rightSide:   frame.rightClaim,
+        rightDesc:   frame.rightDesc,
+        isDebatable: frame.isDebatable,
+        domain:      frame.domain,
+      },
+      papers,
+      analysis: {
+        summary,
+        debate: {
+          leftLabel:     frame.leftClaim,
+          leftDesc:      frame.leftDesc,
+          rightLabel:    frame.rightClaim,
+          rightDesc:     frame.rightDesc,
+          leftPct:       scoring.leftPct,
+          rightPct:      scoring.rightPct,
+          isDebated:     frame.isDebatable,
+          certainty:     scoring.certainty,
+          contradiction: scoring.contradiction,
+          score:         scoring.score,
+        },
+        stances,
+      },
+      media: mediaStances,
+      mediaAnalysis: {
+        leftPct:    mediaAnalysis.leftPct  ?? 50,
+        rightPct:   mediaAnalysis.rightPct ?? 50,
+        divergence: Math.round(mediaDivergence),
+      },
+      meta: {
+        paperCount:    papers.length,
+        sourceCounts,
+        certainty:     scoring.certainty,
+        contradiction: scoring.contradiction,
+        score:         scoring.score,
+        durationMs:    Date.now() - t0,
+        algorithm:     'v6-hard-filter-deterministic-scoring',
+        requiredTerms: frame.requiredTerms,
+        synonyms:      frame.synonyms,
+      }
+    });
 
   } catch (err) {
-    console.error('Pipeline error:', err.message);
+    console.error('  ✗ FATAL:', err.message);
+    console.error(err.stack?.split('\n').slice(0,4).join('\n'));
     res.status(500).json({ error: err.message });
   }
 });
 
+// ─────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`Verity running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`\n🔬 Verity v6.0 → http://localhost:${PORT}`);
+  console.log('   Sources:  Semantic Scholar + PubMed + OpenAlex (parallel)');
+  console.log('   Filter:   HARD — requiredTerms/synonyms MUST appear in paper text');
+  console.log('   Scoring:  w=D×B×P×R×U | c=S×M×w (fully deterministic)');
+  console.log('   Synthesis: Claude writes prose from pre-computed scores only\n');
+});
