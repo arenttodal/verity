@@ -1804,7 +1804,7 @@ function mediaStanceToX(stance, weight) {
 
 // ── Main data population ──────────────────────────────────────────
 function populateFromData(data) {
-  const { queryMeta, papers, analysis, media, mediaAnalysis } = data;
+  const { queryMeta, papers, analysis, media, mediaAnalysis, meta } = data;
 
   // 1. Query title + certainty badge
   document.getElementById('queryTitle').textContent = queryMeta.plain || '';
