@@ -725,12 +725,30 @@ function computeConsensus(extractions) {
     rawCertainty > 0.36 && qualityCount >= 4  ? 'Moderate' :
     rawCertainty > 0.18                        ? 'Low'      : 'Very low';
 
+  // Directional confidence: how consistently does the evidence point one way?
+  // High = strong signal, mostly one direction; Low = mixed or sparse
+  const absScore = Math.abs(score);
+  const directionalConf =
+    absScore >= 70 && contradiction < 0.15 ? 'Strong'   :
+    absScore >= 50 && contradiction < 0.30 ? 'Moderate' :
+    absScore >= 30                          ? 'Mixed'    : 'Inconclusive';
+
+  // Design mix: what proportion are meta-analyses or RCTs?
+  const highDesignCount = contributions.filter(c =>
+    ['umbrella','meta','rct'].includes(c.design)
+  ).length;
+  const designQuality = qualityCount > 0
+    ? (highDesignCount / qualityCount >= 0.4 ? 'RCT/meta-dominant'
+      : highDesignCount / qualityCount >= 0.2 ? 'mixed designs'
+      : 'mostly observational')
+    : 'unknown';
+
   // Top evidence drivers sorted by absolute contribution
   const topDrivers = [...contributions]
     .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
     .slice(0, 6);
 
-  return { score, rightPct, leftPct, certainty, contradiction, evidenceCount: qualityCount, topDrivers, contributions };
+  return { score, rightPct, leftPct, certainty, directionalConf, designQuality, contradiction, evidenceCount: qualityCount, topDrivers, contributions };
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -754,11 +772,13 @@ async function synthesize(frame, papers, scoring) {
       role: 'user',
       content: `Write a plain-language evidence synthesis for: "${frame.plain}"
 
-Deterministic scoring results (these are computed facts, not your opinion):
+Deterministic scoring results (computed facts — do not override these):
 - Consensus direction: ${scoring.score > 5 ? 'leans toward ' + frame.rightClaim : scoring.score < -5 ? 'leans toward ' + frame.leftClaim : 'genuinely mixed or neutral'}
 - Raw score: ${scoring.score} (scale: -100 = strongly left, 0 = neutral, +100 = strongly right)
-- Certainty level: ${scoring.certainty}
-- Contradiction index: ${scoring.contradiction.toFixed(2)} (0=one-sided, 1=evenly split)
+- Directional confidence: ${scoring.directionalConf} (how consistently evidence points one way)
+- Causal certainty: ${scoring.certainty} (quality of study designs — mostly reflects RCT vs observational)
+- Design quality: ${scoring.designQuality} (what types of studies make up the evidence base)
+- Contradiction index: ${scoring.contradiction.toFixed(2)} (0=one-sided evidence, 1=evenly split — real disagreement)
 - Scored outcome results: ${scoring.evidenceCount}
 
 Top evidence drivers (highest-weighted findings):
@@ -767,17 +787,25 @@ ${drivers}
 Papers analysed:
 ${paperList}
 
-Write 2–3 paragraphs of HTML:
-- Paragraph 1: What the strongest evidence actually shows (cite specific papers, effect sizes, sample sizes from drivers above)
-- Paragraph 2: Limitations, contradictions, or evidence gaps — proportional to certainty (${scoring.certainty})
-- Paragraph 3: What this evidence does NOT establish, and what would change the assessment
+Write 2–3 paragraphs of HTML. Be calibrated — match the tone to the ACTUAL evidence pattern, not a generic uncertainty formula.
+
+Certainty in this context means CAUSAL certainty (can we establish mechanism/causation), NOT whether the association is real.
+Directional confidence means how consistently the studies point one way.
+
+These are different things. A topic can have STRONG directional confidence + LOW causal certainty (e.g. coffee and mortality: very consistent association across millions of people, but mostly observational so causation unproven). Say THAT — do not say "we don't know."
+
+- Paragraph 1: What the evidence consistently shows. If directional confidence is Strong or Moderate, say so plainly. Cite specific numbers from top drivers.
+- Paragraph 2: What KIND of uncertainty exists. Is it "few studies"? "only observational"? "conflicting high-quality studies"? Name the specific limitation, not a generic hedge.
+- Paragraph 3: What this evidence does NOT establish (causation vs association, optimal dose, specific populations etc.) and what study design would change the picture.
 
 Rules:
-- Use <strong> only for key terms and notable findings
-- NEVER use bullet points or lists
-- NEVER invent numbers not present in the drivers above
-- If certainty is Low or Very low, be explicit about that uncertainty
-- If contradiction > 0.3, explicitly name the genuine disagreement`
+- Use <strong> for key findings and specific numbers
+- NEVER use bullet points
+- NEVER invent numbers not in the drivers
+- If directional confidence is Strong: open with confident language ("The evidence consistently shows...")
+- If certainty is Very low due to design (observational only): say "association is consistent but causation unproven" — NOT "we don't know"
+- If certainty is Very low due to sparse evidence: say "limited evidence available" — different framing
+- Reserve "genuinely uncertain" for topics where contradiction > 0.3 (real disagreement in the literature)`
     }]
   });
 
@@ -1236,16 +1264,18 @@ app.post('/api/search', async (req, res) => {
       analysis: {
         summary,
         debate: {
-          leftLabel:     frame.leftClaim,
-          leftDesc:      frame.leftDesc,
-          rightLabel:    frame.rightClaim,
-          rightDesc:     frame.rightDesc,
-          leftPct:       scoring.leftPct,
-          rightPct:      scoring.rightPct,
-          isDebated:     frame.isDebatable,
-          certainty:     scoring.certainty,
-          contradiction: scoring.contradiction,
-          score:         scoring.score,
+          leftLabel:          frame.leftClaim,
+          leftDesc:           frame.leftDesc,
+          rightLabel:         frame.rightClaim,
+          rightDesc:          frame.rightDesc,
+          leftPct:            scoring.leftPct,
+          rightPct:           scoring.rightPct,
+          isDebated:          frame.isDebatable,
+          certainty:          scoring.certainty,
+          directionalConf:    scoring.directionalConf,
+          designQuality:      scoring.designQuality,
+          contradiction:      scoring.contradiction,
+          score:              scoring.score,
         },
         stances,
       },

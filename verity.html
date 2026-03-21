@@ -663,6 +663,7 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
     <div class="htags">
       <div class="htag">Science only</div>
       <div class="htag">Peer-reviewed</div>
+      <a href="/about.html" class="htag" style="text-decoration:none;cursor:pointer;transition:border-color 0.2s,color 0.2s;" onmouseover="this.style.borderColor='rgba(255,255,255,0.18)';this.style.color='rgba(255,255,255,0.6)'" onmouseout="this.style.borderColor='';this.style.color=''">About</a>
     </div>
   </header>
 
@@ -1809,37 +1810,50 @@ function populateFromData(data) {
   // 1. Query title + certainty badge
   document.getElementById('queryTitle').textContent = queryMeta.plain || '';
 
-  // Certainty badge
-  const certainty = analysis.debate?.certainty || meta?.certainty || 'Very low';
-  const certKey   = certainty.toLowerCase().replace(/\s+/g, '_');
-  const certClass = { high: 'cert-high', moderate: 'cert-moderate', low: 'cert-low', very_low: 'cert-vlow' }[certKey] || 'cert-vlow';
-  const certColor = { high: 'rgba(80,190,120,0.85)', moderate: 'rgba(200,175,60,0.85)', low: 'rgba(200,130,60,0.85)', very_low: 'rgba(200,80,80,0.85)' }[certKey] || 'rgba(200,80,80,0.85)';
+  // Certainty badge — two distinct signals: directional confidence + causal certainty
+  const certainty      = analysis.debate?.certainty       || meta?.certainty       || 'Very low';
+  const dirConf        = analysis.debate?.directionalConf || 'Moderate';
+  const designQuality  = analysis.debate?.designQuality   || 'unknown';
+  const contradiction  = analysis.debate?.contradiction   || 0;
+  const paperCount     = meta?.paperCount || papers.length;
 
-  const contradiction = analysis.debate?.contradiction || 0;
-  const paperCount    = meta?.paperCount || papers.length;
+  // Badge colour is driven by DIRECTIONAL confidence — the signal the user actually cares about
+  const dirKey   = dirConf.toLowerCase();
+  const certClass = { strong: 'cert-high', moderate: 'cert-moderate', mixed: 'cert-low', inconclusive: 'cert-vlow' }[dirKey] || 'cert-vlow';
+  const certColor = { strong: 'rgba(80,190,120,0.85)', moderate: 'rgba(200,175,60,0.85)', mixed: 'rgba(200,130,60,0.85)', inconclusive: 'rgba(200,80,80,0.85)' }[dirKey] || 'rgba(200,80,80,0.85)';
 
-  const certExplainer = {
-    high:     `<strong>High certainty.</strong> ${paperCount} studies with consistent findings and strong methodology support this conclusion.`,
-    moderate: `<strong>Moderate certainty.</strong> Based on ${paperCount} studies. Some limitations in study design or consistency exist.`,
-    low:      `<strong>Low certainty.</strong> Only ${paperCount} relevant studies found, or studies have significant methodological limitations. Interpret with caution.`,
-    very_low: `<strong>Very low certainty.</strong> ${paperCount} studies available, with major gaps or high contradiction (index: ${contradiction.toFixed(2)}). Evidence is insufficient for confident conclusions.`,
-  }[certKey] || `Based on ${paperCount} studies.`;
+  // Causal certainty maps to a plain explanation of WHY
+  const causalNote = {
+    'High':     'The evidence base includes multiple RCTs or meta-analyses — causation is well-supported.',
+    'Moderate': 'A mix of RCTs and observational studies. Causation is plausible but not fully established.',
+    'Low':      'Mostly observational studies. The association is real but causation cannot be confirmed without controlled trials.',
+    'Very low': designQuality === 'mostly observational'
+      ? 'The evidence is almost entirely observational — consistent association, but causation unproven. This is the norm for long-term dietary and lifestyle research where RCTs are impractical.'
+      : 'Limited studies available. More research is needed before confident conclusions are possible.',
+  }[certainty] || '';
 
-  // Add contradiction note if high
+  const dirNote = {
+    strong:      `Evidence points <strong>consistently in one direction</strong> across ${paperCount} studies.`,
+    moderate:    `Evidence is <strong>mostly consistent</strong> across ${paperCount} studies with some variation.`,
+    mixed:       `Evidence is <strong>genuinely mixed</strong> — significant studies point in both directions.`,
+    inconclusive:`Evidence is <strong>sparse or inconclusive</strong> — insufficient data for a confident signal.`,
+  }[dirKey] || '';
+
   const contNote = contradiction > 0.35
-    ? ` <strong>Note:</strong> Evidence is genuinely contested — significant research points in both directions.`
+    ? ` <strong>Genuine disagreement:</strong> the literature is divided — this is a real scientific debate, not just methodological noise.`
     : '';
 
-  const badge    = document.getElementById('certaintyBadge');
-  const dot      = document.getElementById('certDot');
-  const label    = document.getElementById('certLabel');
-  const tooltip  = document.getElementById('certTooltip');
-  badge.className  = `certainty-badge ${certClass}`;
-  dot.className    = `cb-dot ${certClass}`;
-  dot.style.background = certColor;
-  label.textContent    = certainty + ' certainty · ' + paperCount + ' studies';
-  tooltip.innerHTML    = certExplainer + contNote;
-  badge.style.display  = 'inline-flex';
+  const badge   = document.getElementById('certaintyBadge');
+  const dot     = document.getElementById('certDot');
+  const label   = document.getElementById('certLabel');
+  const tooltip = document.getElementById('certTooltip');
+
+  badge.className       = `certainty-badge ${certClass}`;
+  dot.className         = `cb-dot ${certClass}`;
+  dot.style.background  = certColor;
+  label.textContent     = dirConf + ' signal · ' + paperCount + ' studies';
+  tooltip.innerHTML     = `${dirNote}<br><br><span style="opacity:0.7;font-size:10px;">${causalNote}</span>${contNote}`;
+  badge.style.display   = 'inline-flex';
 
   // Cache badge
   const cacheBadge = document.getElementById('cacheBadge');
