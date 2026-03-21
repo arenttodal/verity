@@ -633,205 +633,272 @@ Rules:
 }
 
 // ─────────────────────────────────────────────────────────────────
-//  MEDIA: Search-based news aggregation
+//  MEDIA: 5-year news search — same window as science
 //
-//  Strategy (in order of reliability):
-//    1. Google News RSS search  — topic-specific, all major outlets
-//    2. Bing News RSS search    — fallback search
-//    3. Curated outlet feeds    — filtered to topic keywords
+//  Three sources, all supporting date-range queries:
+//    1. The Guardian API    — free "test" key, full archive, date range
+//    2. NYT Article Search  — free key, full archive, date range
+//    3. Google News RSS     — date operators in query string
 //
-//  Google/Bing News RSS are search endpoints — they always return
-//  topic-relevant results regardless of current news cycle.
-//  No API key. No IP restrictions. Works from any server.
+//  Results ranked by: outlet credibility × relevance × recency
+//  Best 15 selected for Claude framing analysis.
 // ─────────────────────────────────────────────────────────────────
 
-// Outlet credibility weights for domain matching
 const OUTLET_WEIGHTS = {
-  'bbc.co.uk': 4, 'bbc.com': 4, 'nytimes.com': 4, 'reuters.com': 4,
-  'theguardian.com': 4, 'washingtonpost.com': 4, 'nature.com': 4,
-  'science.org': 4, 'nejm.org': 4, 'thelancet.com': 4,
+  'theguardian.com': 4, 'nytimes.com': 4, 'bbc.co.uk': 4, 'bbc.com': 4,
+  'reuters.com': 4, 'washingtonpost.com': 4, 'nature.com': 4,
+  'science.org': 4, 'nejm.org': 4, 'thelancet.com': 4, 'bmj.com': 4,
   'statnews.com': 3, 'newscientist.com': 3, 'sciencedaily.com': 3,
-  'healthline.com': 3, 'medicalnewstoday.com': 3, 'webmd.com': 3,
-  'time.com': 3, 'theatlantic.com': 3, 'vox.com': 3,
+  'healthline.com': 3, 'medicalnewstoday.com': 3, 'time.com': 3,
+  'theatlantic.com': 3, 'vox.com': 3, 'webmd.com': 3,
   'dailymail.co.uk': 2, 'nypost.com': 2, 'foxnews.com': 2,
+  'huffingtonpost.com': 2, 'huffpost.com': 2,
 };
 
-function outletWeight(url) {
+function domainWeight(url) {
+  if (!url) return 2;
   try {
     const host = new URL(url).hostname.replace('www.', '');
     for (const [domain, w] of Object.entries(OUTLET_WEIGHTS)) {
-      if (host.includes(domain)) return w;
+      if (host.endsWith(domain)) return w;
     }
   } catch {}
   return 2;
 }
 
-function parseRSSItems(xml, defaultOutlet, defaultWeight) {
-  const items = [];
-  // RSS 2.0 items
-  for (const m of xml.matchAll(/<item[^>]*>([\s\S]*?)<\/item>/g)) {
-    const b = m[1];
-    const titleM  = b.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
-    const linkM   = b.match(/<link[^>]*>(?:<!\[CDATA\[)?(https?:[^\s<"]+)/) ||
-                    b.match(/<link[^>]*href="([^"]+)"/);
-    const sourceM = b.match(/<source[^>]*>([\s\S]*?)<\/source>/) ||
-                    b.match(/<dc:source[^>]*>([\s\S]*?)<\/dc:source>/);
-    const dateM   = b.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/);
-    const title   = titleM ? stripHtml(titleM[1]).trim() : '';
-    if (title.length < 15) continue;
-    const url     = linkM ? linkM[1].trim() : '';
-    const outlet  = sourceM ? stripHtml(sourceM[1]).trim() : defaultOutlet;
-    const weight  = url ? outletWeight(url) : defaultWeight;
-    const year    = dateM ? (new Date(dateM[1]).getFullYear() || 2024) : 2024;
-    items.push({ title, outlet, url, year, weight });
-  }
-  return items;
+// Score an article's relevance to required terms (0-1)
+function relevanceScore(title, snippet, requiredTerms, synonyms) {
+  const text = ((title || '') + ' ' + (snippet || '')).toLowerCase();
+  const allTerms = [...(requiredTerms || []), ...(synonyms || [])].map(t => t.toLowerCase());
+  if (allTerms.length === 0) return 0.5;
+  const matches = allTerms.filter(t => text.includes(t)).length;
+  return Math.min(1, matches / Math.max(1, allTerms.length) * 2);
 }
 
-// SOURCE 1: Google News RSS search — most reliable, topic-specific
-async function fetchGoogleNewsRSS(searchQuery) {
-  // Google News RSS search endpoint — returns articles matching the query
-  // from hundreds of outlets. No auth, no rate limit for reasonable use.
-  const q = encodeURIComponent(searchQuery);
+// ── SOURCE 1: The Guardian Open Platform ─────────────────────────
+// Free "test" API key — works for all basic searches, full archive
+// Docs: https://open-platform.theguardian.com/
+async function fetchGuardian(searchQuery, fromDate, toDate, frame) {
+  const apiKey = process.env.GUARDIAN_API_KEY || 'test';
+  const params = new URLSearchParams({
+    q:          searchQuery,
+    'from-date': fromDate,
+    'to-date':   toDate,
+    'order-by':  'relevance',
+    'page-size': '30',
+    'show-fields': 'headline,trailText,publicationDate',
+    'api-key':   apiKey,
+  });
+
+  const res = await fetch(
+    `https://content.guardianapis.com/search?${params}`,
+    { signal: AbortSignal.timeout(10000) }
+  );
+  if (!res.ok) throw new Error(`Guardian ${res.status}`);
+  const data = await res.json();
+
+  return (data.response?.results || []).map(r => ({
+    title:   stripHtml(r.webTitle || r.fields?.headline || ''),
+    snippet: stripHtml(r.fields?.trailText || ''),
+    outlet:  'The Guardian',
+    url:     r.webUrl || '',
+    year:    r.webPublicationDate ? parseInt(r.webPublicationDate.slice(0, 4)) : 2023,
+    weight:  4,
+  })).filter(a => a.title.length > 15);
+}
+
+// ── SOURCE 2: NYT Article Search ─────────────────────────────────
+// Free key (500 req/day). Get one at: https://developer.nytimes.com/
+// Without key: gracefully skipped
+async function fetchNYT(searchQuery, fromDate, toDate, frame) {
+  const apiKey = process.env.NYT_API_KEY;
+  if (!apiKey) return [];
+
+  // NYT uses YYYYMMDD format
+  const begin = fromDate.replace(/-/g, '');
+  const end   = toDate.replace(/-/g, '');
+  const params = new URLSearchParams({
+    q:          searchQuery,
+    begin_date: begin,
+    end_date:   end,
+    sort:       'relevance',
+    'api-key':  apiKey,
+  });
+
+  const res = await fetch(
+    `https://api.nytimes.com/svc/search/v2/articlesearch.json?${params}`,
+    { signal: AbortSignal.timeout(10000) }
+  );
+  if (!res.ok) throw new Error(`NYT ${res.status}`);
+  const data = await res.json();
+
+  return (data.response?.docs || []).map(r => ({
+    title:   stripHtml(r.headline?.main || r.abstract || ''),
+    snippet: stripHtml(r.abstract || r.lead_paragraph || ''),
+    outlet:  'New York Times',
+    url:     r.web_url || '',
+    year:    r.pub_date ? parseInt(r.pub_date.slice(0, 4)) : 2023,
+    weight:  4,
+  })).filter(a => a.title.length > 15);
+}
+
+// ── SOURCE 3: Google News RSS with date operators ─────────────────
+// Google News supports after: and before: date operators
+// Returns results from the specified date window
+async function fetchGoogleNewsDateRange(searchQuery, fromYear) {
+  // Google News date operator: after:YYYY-MM-DD
+  const dateQuery = `${searchQuery} after:${fromYear}-01-01`;
+  const q   = encodeURIComponent(dateQuery);
   const url = `https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`;
-  
+
   const res = await fetch(url, {
     signal:  AbortSignal.timeout(10000),
     headers: {
       'User-Agent': 'Mozilla/5.0 (compatible; Verity/6.0; +https://verity.science)',
-      'Accept':     'application/rss+xml, application/xml, text/xml',
+      'Accept':     'application/rss+xml, text/xml',
     }
   });
   if (!res.ok) throw new Error(`Google News ${res.status}`);
   const xml = await res.text();
-  
-  const items = parseRSSItems(xml, 'Google News', 3);
-  // Google News titles often have " - Outlet Name" suffix — clean it
-  return items.map(a => ({
-    ...a,
-    title:  a.title.replace(/\s+[-–—]\s+[^-–—]+$/, '').trim() || a.title,
-    outlet: a.title.match(/[-–—]\s+([^-–—]+)$/)?.[1]?.trim() || a.outlet,
-  }));
+
+  const items = [];
+  for (const m of xml.matchAll(/<item[^>]*>([\s\S]*?)<\/item>/g)) {
+    const b     = m[1];
+    const titleM = b.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
+    const linkM  = b.match(/<link[^>]*>(https?:[^\s<"]+)/);
+    const dateM  = b.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/);
+    const srcM   = b.match(/<source[^>]*>([\s\S]*?)<\/source>/);
+    const raw    = titleM ? stripHtml(titleM[1]).trim() : '';
+    if (raw.length < 15) continue;
+    // Google News appends " - Outlet Name" to title
+    const dashIdx = raw.lastIndexOf(' - ');
+    const title  = dashIdx > 20 ? raw.slice(0, dashIdx).trim() : raw;
+    const outlet = dashIdx > 20 ? raw.slice(dashIdx + 3).trim() : (srcM ? stripHtml(srcM[1]) : 'News');
+    const url2   = linkM ? linkM[1].trim() : '';
+    const year   = dateM ? (new Date(dateM[1]).getFullYear() || 2023) : 2023;
+    items.push({
+      title, outlet, url: url2, year,
+      weight: domainWeight(url2),
+      snippet: '',
+    });
+  }
+  return items;
 }
 
-// SOURCE 2: Bing News RSS — good fallback, different index
-async function fetchBingNewsRSS(searchQuery) {
-  const q = encodeURIComponent(searchQuery);
-  const url = `https://www.bing.com/news/search?q=${q}&format=rss`;
-  
+// ── SOURCE 4: Bing News RSS with date range ───────────────────────
+async function fetchBingNewsDateRange(searchQuery, fromYear) {
+  const q   = encodeURIComponent(`${searchQuery} after:${fromYear}`);
+  const url = `https://www.bing.com/news/search?q=${q}&format=rss&count=30`;
+
   const res = await fetch(url, {
     signal:  AbortSignal.timeout(10000),
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; Verity/6.0; +https://verity.science)',
-    }
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Verity/6.0)' }
   });
-  if (!res.ok) throw new Error(`Bing News ${res.status}`);
+  if (!res.ok) throw new Error(`Bing ${res.status}`);
   const xml = await res.text();
-  return parseRSSItems(xml, 'Bing News', 3);
-}
 
-// SOURCE 3: Curated outlet RSS feeds — broad current coverage
-const CURATED_FEEDS = [
-  { url: 'https://feeds.bbci.co.uk/news/health/rss.xml',    outlet: 'BBC Health',    weight: 4 },
-  { url: 'https://www.theguardian.com/science/rss',          outlet: 'The Guardian',  weight: 4 },
-  { url: 'https://rss.sciencedaily.com/rss/health_medicine.xml', outlet: 'Science Daily', weight: 3 },
-  { url: 'https://www.statnews.com/feed/',                   outlet: 'STAT News',     weight: 3 },
-  { url: 'https://feeds.reuters.com/reuters/healthNews',     outlet: 'Reuters Health',weight: 4 },
-];
-
-async function fetchCuratedFeeds(requiredTerms, synonyms) {
-  const allTerms = [...(requiredTerms || []), ...(synonyms || [])]
-    .map(t => t.toLowerCase()).filter(t => t.length > 2);
-  
-  const results = await Promise.allSettled(
-    CURATED_FEEDS.map(feed =>
-      fetch(feed.url, {
-        signal:  AbortSignal.timeout(8000),
-        headers: { 'User-Agent': 'Verity/6.0 (hello@verity.science)' }
-      })
-      .then(r => r.ok ? r.text() : Promise.reject(new Error(r.status)))
-      .then(xml => parseRSSItems(xml, feed.outlet, feed.weight))
-      .then(items => allTerms.length > 0
-        ? items.filter(a => allTerms.some(t => a.title.toLowerCase().includes(t)))
-        : items
-      )
-      .catch(() => [])
-    )
-  );
-  
-  return results.filter(r => r.status === 'fulfilled').flatMap(r => r.value);
-}
-
-// GDELT as last resort
-async function fetchGDELTFallback(gdeltQuery) {
-  const start = new Date();
-  start.setFullYear(start.getFullYear() - 2);
-  const sd = start.toISOString().slice(0,10).replace(/-/g,'') + '000000';
-  for (const q of [`"${gdeltQuery}" sourcelang:english`, `${gdeltQuery} sourcelang:english`]) {
-    try {
-      const params = new URLSearchParams({ query: q, mode: 'artlist', maxrecords: '20', format: 'json', STARTDATETIME: sd, sort: 'datedesc' });
-      const res = await fetch(`https://api.gdeltproject.org/api/v2/doc/doc?${params}`, { signal: AbortSignal.timeout(10000) });
-      if (!res.ok) continue;
-      const data = await res.json();
-      const arts = (data.articles || []).filter(a => a.title?.length > 20).slice(0, 15)
-        .map(a => ({ title: stripHtml(a.title), outlet: a.domain || 'Unknown', url: a.url, year: a.seendate ? parseInt(a.seendate.slice(0,4)) : 2024, weight: 2 }));
-      if (arts.length > 0) { console.log(`  GDELT: ${arts.length}`); return arts; }
-    } catch (e) { console.warn(`  GDELT: ${e.message}`); }
+  const items = [];
+  for (const m of xml.matchAll(/<item[^>]*>([\s\S]*?)<\/item>/g)) {
+    const b     = m[1];
+    const titleM = b.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
+    const linkM  = b.match(/<link[^>]*>(https?:[^\s<"]+)/);
+    const descM  = b.match(/<description[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/);
+    const dateM  = b.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/);
+    const title  = titleM ? stripHtml(titleM[1]).trim() : '';
+    if (title.length < 15) continue;
+    const url2   = linkM ? linkM[1].trim() : '';
+    const year   = dateM ? (new Date(dateM[1]).getFullYear() || 2023) : 2023;
+    items.push({
+      title, outlet: 'News', url: url2, year,
+      weight: domainWeight(url2),
+      snippet: descM ? stripHtml(descM[1]).slice(0, 200) : '',
+    });
   }
-  return [];
+  return items;
 }
 
-// Build the search query from the frame — use gdeltQuery + synonyms
-function buildNewsSearchQuery(frame) {
-  const base = frame.gdeltQuery || (frame.requiredTerms || []).join(' ');
-  const syns = (frame.synonyms || []).slice(0, 2).join(' OR ');
-  return syns ? `${base} OR ${syns}` : base;
+// ── RANKING: score + select best articles ────────────────────────
+function rankAndSelect(articles, frame, maxCount = 15) {
+  const required = frame.requiredTerms || [];
+  const synonyms = frame.synonyms      || [];
+  const fromYear = new Date().getFullYear() - 5;
+
+  return articles
+    .filter(a => a.title && a.title.length > 15)
+    .filter(a => a.year >= fromYear) // enforce 5-year window
+    .map(a => {
+      const rel     = relevanceScore(a.title, a.snippet, required, synonyms);
+      const recency = Math.max(0, 1 - (new Date().getFullYear() - a.year) / 6);
+      const score   = a.weight * rel * 0.65 + a.weight * 0.2 + recency * 0.15;
+      return { ...a, _score: score, _rel: rel };
+    })
+    .filter(a => a._rel > 0) // must have keyword match
+    .sort((a, b) => b._score - a._score)
+    .slice(0, maxCount);
 }
 
-// Combined media fetch with fallback cascade
+// ── MAIN: fetchMedia ──────────────────────────────────────────────
 async function fetchMedia(frame) {
-  const searchQuery = buildNewsSearchQuery(frame);
-  console.log(`  News search: "${searchQuery}"`);
-  
-  // Try all sources in parallel for speed
-  const [googleRes, bingRes, curatedRes] = await Promise.allSettled([
-    fetchGoogleNewsRSS(searchQuery),
-    fetchBingNewsRSS(searchQuery),
-    fetchCuratedFeeds(frame.requiredTerms, frame.synonyms),
+  const fromYear = new Date().getFullYear() - 5;
+  const fromDate = `${fromYear}-01-01`;
+  const toDate   = new Date().toISOString().slice(0, 10);
+
+  // Build search query from required terms + synonyms
+  const primary  = (frame.requiredTerms || []).slice(0, 2).join(' ');
+  const altTerms = (frame.synonyms      || []).slice(0, 2).join(' OR ');
+  const searchQ  = altTerms ? `(${primary}) OR (${altTerms})` : primary || frame.gdeltQuery || '';
+
+  console.log(`  Media search: "${searchQ}" (${fromDate} → ${toDate})`);
+
+  // Fetch all sources in parallel
+  const [guardianRes, nytRes, googleRes, bingRes] = await Promise.allSettled([
+    fetchGuardian(searchQ, fromDate, toDate, frame),
+    fetchNYT(searchQ, fromDate, toDate, frame),
+    fetchGoogleNewsDateRange(searchQ, fromYear),
+    fetchBingNewsDateRange(searchQ, fromYear),
   ]);
-  
-  const logR = (r, n) => r.status === 'fulfilled' ? `${n}:${r.value.length}` : `${n}:ERR`;
-  console.log(`  Media sources: ${logR(googleRes,'Google')} ${logR(bingRes,'Bing')} ${logR(curatedRes,'Curated')}`);
-  
+
+  const log = (r, n) => r.status === 'fulfilled' ? `${n}:${r.value.length}` : `${n}:ERR(${r.reason?.message?.slice(0,20)})`;
+  console.log(`  Media raw: ${log(guardianRes,'Guardian')} ${log(nytRes,'NYT')} ${log(googleRes,'Google')} ${log(bingRes,'Bing')}`);
+
   const all = [
-    ...(googleRes.status  === 'fulfilled' ? googleRes.value  : []),
-    ...(bingRes.status    === 'fulfilled' ? bingRes.value    : []),
-    ...(curatedRes.status === 'fulfilled' ? curatedRes.value : []),
+    ...(guardianRes.status === 'fulfilled' ? guardianRes.value : []),
+    ...(nytRes.status      === 'fulfilled' ? nytRes.value      : []),
+    ...(googleRes.status   === 'fulfilled' ? googleRes.value   : []),
+    ...(bingRes.status     === 'fulfilled' ? bingRes.value     : []),
   ];
-  
-  // Dedupe by title
+
+  // Dedupe by normalised title
   const seen = new Set();
   const deduped = all.filter(a => {
-    const k = a.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 60);
+    const k = a.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 70);
     if (seen.has(k)) return false;
     seen.add(k); return true;
   });
-  
-  if (deduped.length >= 4) {
-    console.log(`  Media: ${deduped.length} articles (no GDELT needed)`);
-    return deduped.slice(0, 20);
-  }
-  
+
+  // Rank and select best
+  const ranked = rankAndSelect(deduped, frame, 15);
+  console.log(`  Media: ${deduped.length} deduped → ${ranked.length} ranked & selected`);
+
+  if (ranked.length >= 3) return ranked;
+
   // Last resort: GDELT
-  console.log(`  Only ${deduped.length} articles, trying GDELT...`);
-  const gdelt = await fetchGDELTFallback(frame.gdeltQuery || searchQuery);
-  const final = [...deduped, ...gdelt].filter(a => {
-    const k = a.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 60);
-    if (seen.has(k)) return false;
-    seen.add(k); return true;
-  });
-  console.log(`  Media final: ${final.length} articles`);
-  return final.slice(0, 20);
+  console.log('  Trying GDELT fallback...');
+  try {
+    const sd = fromDate.replace(/-/g, '') + '000000';
+    const params = new URLSearchParams({ query: `${searchQ} sourcelang:english`, mode: 'artlist', maxrecords: '25', format: 'json', STARTDATETIME: sd, sort: 'relevance' });
+    const res = await fetch(`https://api.gdeltproject.org/api/v2/doc/doc?${params}`, { signal: AbortSignal.timeout(10000) });
+    if (res.ok) {
+      const data = await res.json();
+      const gdelt = (data.articles || []).filter(a => a.title?.length > 20).slice(0, 15)
+        .map(a => ({ title: stripHtml(a.title), outlet: a.domain || 'Unknown', url: a.url || '', year: a.seendate ? parseInt(a.seendate.slice(0,4)) : 2023, weight: 2, snippet: '' }));
+      const combined = rankAndSelect([...ranked, ...gdelt], frame, 15);
+      console.log(`  GDELT added ${gdelt.length}, final: ${combined.length}`);
+      return combined;
+    }
+  } catch (e) { console.warn(`  GDELT: ${e.message}`); }
+
+  return ranked;
 }
 
 
