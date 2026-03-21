@@ -1746,6 +1746,7 @@ function setLoading(on, stepIdx) {
 
 function showError(msg) {
   setLoading(false);
+  document.documentElement.classList.remove('hero-state');
   document.getElementById('errMsg').textContent = msg;
   document.getElementById('errorState').style.display = 'flex';
 }
@@ -2055,6 +2056,9 @@ function populateFromData(data) {
 document.getElementById('searchInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') runSearch();
 });
+
+// Lock scroll on initial hero state — re-enabled when results or error appear
+document.documentElement.classList.add('hero-state');
 
 </script>
 </body>
