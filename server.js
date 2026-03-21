@@ -633,58 +633,153 @@ Rules:
 }
 
 // ─────────────────────────────────────────────────────────────────
-//  MEDIA: GDELT + framing
+//  MEDIA: RSS feed aggregation (no API key, no IP restrictions)
+//
+//  Fetches 8 major outlets in parallel via their public RSS feeds.
+//  Filters by keyword relevance. Falls back to GDELT if RSS yields < 4.
 // ─────────────────────────────────────────────────────────────────
-async function fetchGDELT(query) {
+
+// Major outlets with health/science RSS feeds — all public, no auth
+const RSS_FEEDS = [
+  { url: 'https://feeds.bbci.co.uk/news/health/rss.xml',               outlet: 'BBC Health',        weight: 4 },
+  { url: 'https://feeds.bbci.co.uk/news/science_and_environment/rss.xml', outlet: 'BBC Science',    weight: 4 },
+  { url: 'https://rss.nytimes.com/services/xml/rss/nyt/Health.xml',    outlet: 'New York Times',    weight: 4 },
+  { url: 'https://www.theguardian.com/science/rss',                    outlet: 'The Guardian',      weight: 4 },
+  { url: 'https://www.theguardian.com/lifeandstyle/health-and-wellbeing/rss', outlet: 'The Guardian Health', weight: 4 },
+  { url: 'https://rss.sciencedaily.com/rss/health_medicine.xml',       outlet: 'Science Daily',     weight: 3 },
+  { url: 'https://www.newscientist.com/feed/home/',                    outlet: 'New Scientist',     weight: 3 },
+  { url: 'https://feeds.feedburner.com/time/health',                   outlet: 'TIME Health',       weight: 3 },
+  { url: 'https://www.medicalnewstoday.com/rss/medical-news.xml',      outlet: 'Medical News Today',weight: 2 },
+  { url: 'https://feeds.reuters.com/reuters/healthNews',               outlet: 'Reuters Health',    weight: 4 },
+  { url: 'https://www.statnews.com/feed/',                             outlet: 'STAT News',         weight: 3 },
+  { url: 'https://www.healthline.com/rss/news',                        outlet: 'Healthline',        weight: 2 },
+];
+
+// Parse RSS XML — works for RSS 2.0 and Atom
+function parseRSS(xml, outlet, weight) {
+  const items = [];
+  // Try RSS <item> format
+  const itemRx = /<item[^>]*>([\s\S]*?)<\/item>/g;
+  for (const m of xml.matchAll(itemRx)) {
+    const block = m[1];
+    const titleM = block.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
+    const linkM  = block.match(/<link[^>]*>(?:<!\[CDATA\[)?(https?:[^\s<"]+)(?:\]\]>)?/);
+    const dateM  = block.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/);
+    const title  = titleM ? stripHtml(titleM[1]).trim() : '';
+    if (title.length < 15) continue;
+    const url    = linkM ? linkM[1].trim() : '';
+    const year   = dateM ? (new Date(dateM[1]).getFullYear() || new Date().getFullYear()) : new Date().getFullYear();
+    items.push({ title, outlet, url, year, weight });
+  }
+  // Try Atom <entry> format if no items found
+  if (items.length === 0) {
+    const entryRx = /<entry[^>]*>([\s\S]*?)<\/entry>/g;
+    for (const m of xml.matchAll(entryRx)) {
+      const block = m[1];
+      const titleM = block.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
+      const linkM  = block.match(/<link[^>]*href="([^"]+)"/);
+      const dateM  = block.match(/<published[^>]*>([\s\S]*?)<\/published>/) ||
+                     block.match(/<updated[^>]*>([\s\S]*?)<\/updated>/);
+      const title  = titleM ? stripHtml(titleM[1]).trim() : '';
+      if (title.length < 15) continue;
+      const url    = linkM ? linkM[1].trim() : '';
+      const year   = dateM ? (new Date(dateM[1]).getFullYear() || new Date().getFullYear()) : new Date().getFullYear();
+      items.push({ title, outlet, url, year, weight });
+    }
+  }
+  return items;
+}
+
+// Keyword relevance score for an article title against search terms
+function articleRelevance(title, requiredTerms, synonyms) {
+  const text = title.toLowerCase();
+  const allTerms = [...(requiredTerms || []), ...(synonyms || [])].map(t => t.toLowerCase());
+  return allTerms.some(t => text.includes(t));
+}
+
+async function fetchRSSMedia(frame) {
+  const required = frame.requiredTerms || [];
+  const synonyms = frame.synonyms      || [];
+
+  // Fetch all feeds in parallel, tolerate individual failures
+  const results = await Promise.allSettled(
+    RSS_FEEDS.map(feed =>
+      fetch(feed.url, {
+        signal:  AbortSignal.timeout(8000),
+        headers: { 'User-Agent': 'Verity/6.0 RSS Reader (hello@verity.science)' }
+      })
+      .then(r => r.ok ? r.text() : Promise.reject(new Error(`${r.status}`)))
+      .then(xml => parseRSS(xml, feed.outlet, feed.weight))
+      .catch(e => { console.warn(`  RSS ${feed.outlet}: ${e.message}`); return []; })
+    )
+  );
+
+  const allArticles = results
+    .filter(r => r.status === 'fulfilled')
+    .flatMap(r => r.value);
+
+  // Filter to topic-relevant articles
+  const relevant = allArticles.filter(a => articleRelevance(a.title, required, synonyms));
+
+  // Dedupe by title
+  const seen = new Set();
+  const deduped = relevant.filter(a => {
+    const k = a.title.toLowerCase().slice(0, 80);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+
+  console.log(`  RSS: ${allArticles.length} total → ${deduped.length} relevant`);
+  return deduped.slice(0, 20);
+}
+
+// GDELT as backup — called only if RSS fails to yield enough articles
+async function fetchGDELTFallback(gdeltQuery) {
   const start = new Date();
   start.setFullYear(start.getFullYear() - 2);
   const sd = start.toISOString().slice(0,10).replace(/-/g,'') + '000000';
 
-  // Try quoted query first, then unquoted fallback
-  const queries = [`"${query}" sourcelang:english`, `${query} sourcelang:english`];
-
-  for (const q of queries) {
-    const params = new URLSearchParams({
-      query: q, mode: 'artlist', maxrecords: '25',
-      format: 'json', STARTDATETIME: sd, sort: 'datedesc'
-    });
+  for (const q of [`"${gdeltQuery}" sourcelang:english`, `${gdeltQuery} sourcelang:english`]) {
     try {
-      const res = await fetch(
-        `https://api.gdeltproject.org/api/v2/doc/doc?${params}`,
-        { signal: AbortSignal.timeout(12000) }
-      );
-      if (!res.ok) { console.warn(`  GDELT attempt failed: ${res.status}`); continue; }
+      const params = new URLSearchParams({ query: q, mode: 'artlist', maxrecords: '20', format: 'json', STARTDATETIME: sd, sort: 'datedesc' });
+      const res = await fetch(`https://api.gdeltproject.org/api/v2/doc/doc?${params}`, { signal: AbortSignal.timeout(10000) });
+      if (!res.ok) continue;
       const data = await res.json();
-      const articles = (data.articles || [])
-        .filter(a => a.title?.length > 20).slice(0, 15)
-        .map(a => ({
-          title:  stripHtml(a.title),
-          outlet: a.domain || 'Unknown',
-          url:    a.url,
-          year:   a.seendate ? parseInt(a.seendate.slice(0,4)) : 2024,
-          weight: 3,
-        }));
-      if (articles.length > 0) {
-        console.log(`  GDELT: ${articles.length} articles`);
-        return articles;
-      }
-    } catch (e) {
-      console.warn(`  GDELT attempt error: ${e.message}`);
-    }
+      const arts = (data.articles || []).filter(a => a.title?.length > 20).slice(0, 15)
+        .map(a => ({ title: stripHtml(a.title), outlet: a.domain || 'Unknown', url: a.url, year: a.seendate ? parseInt(a.seendate.slice(0,4)) : 2024, weight: 2 }));
+      if (arts.length > 0) { console.log(`  GDELT fallback: ${arts.length}`); return arts; }
+    } catch (e) { console.warn(`  GDELT fallback error: ${e.message}`); }
   }
-  console.warn('  GDELT: all attempts failed, returning empty');
   return [];
 }
 
+// Combined media fetch: RSS primary, GDELT fallback
+async function fetchMedia(frame) {
+  const rssArticles = await fetchRSSMedia(frame);
+  if (rssArticles.length >= 4) return rssArticles;
+  // Not enough from RSS — try GDELT
+  console.log(`  RSS yielded only ${rssArticles.length}, trying GDELT fallback...`);
+  const gdeltArticles = await fetchGDELTFallback(frame.gdeltQuery || '');
+  const combined = [...rssArticles, ...gdeltArticles];
+  // Dedupe again
+  const seen = new Set();
+  return combined.filter(a => {
+    const k = a.title.toLowerCase().slice(0, 80);
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+}
+
 async function analyzeMedia(plain, articles, frame) {
-  if (!articles.length) return { stances: [], leftPct: 50, rightPct: 50 };
+  if (!articles || articles.length === 0) return { stances: [], leftPct: 50, rightPct: 50 };
   const block = articles.map((a, i) => `[${i}] "${a.title}" — ${a.outlet}`).join('\n');
   const msg = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514', max_tokens: 1000,
+    model: 'claude-sonnet-4-20250514', max_tokens: 1200,
     system: 'Media framing analyst. Respond ONLY with valid JSON.',
     messages: [{
       role: 'user',
-      content: `Topic: "${plain}"\nConcern side: "${frame.leftClaim}" | Benefit side: "${frame.rightClaim}"\n\n${block}\n\nReturn ONLY:\n{\n  "stances": [{"index":<n>,"stance":"<pro|con|neutral>","framing":"<one specific sentence>","weight":<1-4>}],\n  "leftPct":<0-100>,\n  "rightPct":<0-100, sums to 100>\n}`
+      content: `Topic: "${plain}"\nConcern framing: "${frame.leftClaim}" | Benefit framing: "${frame.rightClaim}"\n\nAnalyze how each headline frames the science. Headlines from major news outlets:\n${block}\n\nReturn ONLY:\n{\n  "stances": [{"index":<n>,"stance":"<pro|con|neutral>","framing":"<one sentence: specific angle this headline takes>","weight":<1-4>}],\n  "leftPct":<0-100, weighted % leaning concern/skeptical>,\n  "rightPct":<0-100, sums to 100>\n}`
     }]
   });
   const p = parseJSON(msg.content[0].text);
@@ -717,7 +812,7 @@ app.post('/api/search', async (req, res) => {
       fetchSemanticScholar(frame.searchTerms?.semantic || query, 25),
       fetchPubMed(frame.searchTerms?.pubmed || query, 20, 10),
       fetchOpenAlex(frame.searchTerms?.openAlex || query, 15),
-      fetchGDELT(frame.gdeltQuery || query.split(' ').slice(0,3).join(' ')),
+      fetchMedia(frame),
     ]);
 
     const log = (r, name) => r.status === 'fulfilled'
