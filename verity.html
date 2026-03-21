@@ -807,11 +807,24 @@ const MED_COLOR = 'rgba(195,138,62,0.50)';
 function buildStrip() {
   const svg = document.getElementById('stripSvg');
   if (!svg) return;
-  const W   = svg.clientWidth || svg.parentElement.clientWidth || 800;
+
+  // getBoundingClientRect is reliable even mid-layout; clientWidth is not
+  let W = Math.round(svg.getBoundingClientRect().width);
+  if (!W || W < 100) {
+    // Parent may have the real width
+    W = Math.round((svg.parentElement || svg).getBoundingClientRect().width);
+  }
+  if (!W || W < 100) {
+    // Still zero — section not yet painted, retry in 80ms
+    setTimeout(buildStrip, 80);
+    return;
+  }
+  // Account for section-body padding (22px each side)
+  if (W > 44) W = W - 0; // already the inner width from getBCR
 
   // Layout constants
   const PL = 14, PR = 14;
-  const U  = W - PL - PR;
+  const U  = Math.max(100, W - PL - PR); // hard minimum so tx() never returns NaN
   // Row heights
   const SCI_RAIL_H = 76;  // more air above axis
   const AXIS_H     = 36;  // axis zone — labels have room
@@ -819,6 +832,7 @@ function buildStrip() {
   const H = SCI_RAIL_H + AXIS_H + MED_RAIL_H;
 
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', W);
   svg.setAttribute('height', H);
   svg.innerHTML = '';
 
@@ -1562,16 +1576,33 @@ function populateFromData(data) {
   el('.ai-text').innerHTML = summaryHtml;
 
   // 4. Build dynamic strip data
-  // Build a stance lookup by doi
+  // Build stance lookup — handle all ref formats: "doi:X", "pmid:X", "paper-N", bare DOI
   const stanceMap = {};
-  (analysis.stances || []).forEach(s => { stanceMap[s.doi] = s; });
+  (analysis.stances || []).forEach(s => {
+    if (!s.ref && !s.doi) return;
+    const ref = (s.ref || s.doi || '').toLowerCase();
+    stanceMap[ref] = s;
+    // Also index by bare DOI/PMID for flexible matching
+    const bare = ref.replace(/^doi:|^pmid:/, '');
+    if (bare) stanceMap[bare] = s;
+  });
+
+  function findStance(p, idx) {
+    const doi  = (p.doi  || '').toLowerCase();
+    const pmid = (p.pmid || '').toString().toLowerCase();
+    return stanceMap[`doi:${doi}`]
+        || stanceMap[doi]
+        || (pmid ? stanceMap[`pmid:${pmid}`] || stanceMap[pmid] : null)
+        || stanceMap[`paper-${idx + 1}`]
+        || null;
+  }
 
   // Map papers → scienceDots format
   scienceDots.length = 0;
-  papers.forEach(p => {
-    const s = stanceMap[p.doi] || stanceMap[`paper-${papers.indexOf(p)+1}`] || {};
+  papers.forEach((p, idx) => {
+    const s = findStance(p, idx) || {};
     const stance  = s.stance || 'mixed';
-    const type    = s.type   || 'obs';
+    const type    = s.type   || (p.design === 'meta' ? 'meta' : p.design === 'rct' ? 'rct' : p.design === 'cohort' ? 'cohort' : 'obs');
     const x       = stanceToX(stance, p.weight);
     scienceDots.push({
       title:    p.title,
@@ -1613,8 +1644,9 @@ function populateFromData(data) {
   document.getElementById('resultsSections').style.display = 'block';
   document.getElementById('resultsSections').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  // Defer buildStrip until browser has painted and SVG clientWidth is non-zero
-  requestAnimationFrame(() => requestAnimationFrame(() => buildStrip()));
+  // Use setTimeout(0) which queues after layout/paint, more reliable than rAF
+  // for display:none → display:block transitions
+  setTimeout(buildStrip, 50);
 }
 
 document.getElementById('searchInput').addEventListener('keydown', e => {
