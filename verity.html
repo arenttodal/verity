@@ -670,7 +670,7 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
   <div class="section">
     <div class="section-head">
       <div class="strip-head">
-        <div class="section-title">Evidence Strip · 15 Studies + 12 Media</div>
+        <div class="section-title" id="stripTitle">Evidence Strip</div>
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
           <div class="toggles">
             <div class="toggle-btn on-sci" id="tSci" onclick="toggleLayer('science')">
@@ -1501,6 +1501,15 @@ async function runSearch() {
     setLoading(true, 'Analysing evidence…');
     const data = await res.json();
 
+    // Debug: log what we received
+    console.log('[Verity] Response:', {
+      papers: data.papers?.length,
+      media:  data.media?.length,
+      sciPct: data.analysis?.debate?.rightPct,
+      medPct: data.mediaAnalysis?.rightPct,
+      certainty: data.meta?.certainty,
+    });
+
     setLoading(false);
     populateFromData(data);
 
@@ -1552,13 +1561,29 @@ function populateFromData(data) {
 
   // Animate consensus pins
   const sciPct = d.rightPct ?? 50;
-  const medPct = mediaAnalysis.rightPct ?? 50;
+  // Only use mediaAnalysis pct if we actually got media articles (not the 50/50 default)
+  const hasMedia = (media || []).length > 0;
+  const medPct = hasMedia ? (mediaAnalysis.rightPct ?? 50) : 50;
   const divergence = mediaAnalysis.divergence ?? Math.abs(medPct - sciPct);
+
+  // Update strip header with real counts
+  const stripTitleEl = document.getElementById('stripTitle');
+  if (stripTitleEl) {
+    const medCount = (media || []).length;
+    stripTitleEl.textContent = `Evidence Strip · ${papers.length} Studies${medCount > 0 ? ' + ' + medCount + ' Media' : ''}`;
+  }
+
+  // Show/hide media toggle based on whether we have media data
+  const tMedBtn = document.getElementById('tMed');
+  if (tMedBtn) {
+    tMedBtn.style.opacity = hasMedia ? '1' : '0.3';
+    tMedBtn.style.pointerEvents = hasMedia ? 'auto' : 'none';
+  }
 
   setTimeout(() => {
     document.getElementById('pinScience').style.left = sciPct + '%';
     setTimeout(() => {
-      document.getElementById('pinMedia').style.left = medPct + '%';
+      if (hasMedia) document.getElementById('pinMedia').style.left = medPct + '%';
     }, 220);
   }, 300);
 

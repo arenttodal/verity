@@ -633,113 +633,140 @@ Rules:
 }
 
 // ─────────────────────────────────────────────────────────────────
-//  MEDIA: RSS feed aggregation (no API key, no IP restrictions)
+//  MEDIA: Search-based news aggregation
 //
-//  Fetches 8 major outlets in parallel via their public RSS feeds.
-//  Filters by keyword relevance. Falls back to GDELT if RSS yields < 4.
+//  Strategy (in order of reliability):
+//    1. Google News RSS search  — topic-specific, all major outlets
+//    2. Bing News RSS search    — fallback search
+//    3. Curated outlet feeds    — filtered to topic keywords
+//
+//  Google/Bing News RSS are search endpoints — they always return
+//  topic-relevant results regardless of current news cycle.
+//  No API key. No IP restrictions. Works from any server.
 // ─────────────────────────────────────────────────────────────────
 
-// Major outlets with health/science RSS feeds — all public, no auth
-const RSS_FEEDS = [
-  { url: 'https://feeds.bbci.co.uk/news/health/rss.xml',               outlet: 'BBC Health',        weight: 4 },
-  { url: 'https://feeds.bbci.co.uk/news/science_and_environment/rss.xml', outlet: 'BBC Science',    weight: 4 },
-  { url: 'https://rss.nytimes.com/services/xml/rss/nyt/Health.xml',    outlet: 'New York Times',    weight: 4 },
-  { url: 'https://www.theguardian.com/science/rss',                    outlet: 'The Guardian',      weight: 4 },
-  { url: 'https://www.theguardian.com/lifeandstyle/health-and-wellbeing/rss', outlet: 'The Guardian Health', weight: 4 },
-  { url: 'https://rss.sciencedaily.com/rss/health_medicine.xml',       outlet: 'Science Daily',     weight: 3 },
-  { url: 'https://www.newscientist.com/feed/home/',                    outlet: 'New Scientist',     weight: 3 },
-  { url: 'https://feeds.feedburner.com/time/health',                   outlet: 'TIME Health',       weight: 3 },
-  { url: 'https://www.medicalnewstoday.com/rss/medical-news.xml',      outlet: 'Medical News Today',weight: 2 },
-  { url: 'https://feeds.reuters.com/reuters/healthNews',               outlet: 'Reuters Health',    weight: 4 },
-  { url: 'https://www.statnews.com/feed/',                             outlet: 'STAT News',         weight: 3 },
-  { url: 'https://www.healthline.com/rss/news',                        outlet: 'Healthline',        weight: 2 },
-];
+// Outlet credibility weights for domain matching
+const OUTLET_WEIGHTS = {
+  'bbc.co.uk': 4, 'bbc.com': 4, 'nytimes.com': 4, 'reuters.com': 4,
+  'theguardian.com': 4, 'washingtonpost.com': 4, 'nature.com': 4,
+  'science.org': 4, 'nejm.org': 4, 'thelancet.com': 4,
+  'statnews.com': 3, 'newscientist.com': 3, 'sciencedaily.com': 3,
+  'healthline.com': 3, 'medicalnewstoday.com': 3, 'webmd.com': 3,
+  'time.com': 3, 'theatlantic.com': 3, 'vox.com': 3,
+  'dailymail.co.uk': 2, 'nypost.com': 2, 'foxnews.com': 2,
+};
 
-// Parse RSS XML — works for RSS 2.0 and Atom
-function parseRSS(xml, outlet, weight) {
-  const items = [];
-  // Try RSS <item> format
-  const itemRx = /<item[^>]*>([\s\S]*?)<\/item>/g;
-  for (const m of xml.matchAll(itemRx)) {
-    const block = m[1];
-    const titleM = block.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
-    const linkM  = block.match(/<link[^>]*>(?:<!\[CDATA\[)?(https?:[^\s<"]+)(?:\]\]>)?/);
-    const dateM  = block.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/);
-    const title  = titleM ? stripHtml(titleM[1]).trim() : '';
-    if (title.length < 15) continue;
-    const url    = linkM ? linkM[1].trim() : '';
-    const year   = dateM ? (new Date(dateM[1]).getFullYear() || new Date().getFullYear()) : new Date().getFullYear();
-    items.push({ title, outlet, url, year, weight });
-  }
-  // Try Atom <entry> format if no items found
-  if (items.length === 0) {
-    const entryRx = /<entry[^>]*>([\s\S]*?)<\/entry>/g;
-    for (const m of xml.matchAll(entryRx)) {
-      const block = m[1];
-      const titleM = block.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
-      const linkM  = block.match(/<link[^>]*href="([^"]+)"/);
-      const dateM  = block.match(/<published[^>]*>([\s\S]*?)<\/published>/) ||
-                     block.match(/<updated[^>]*>([\s\S]*?)<\/updated>/);
-      const title  = titleM ? stripHtml(titleM[1]).trim() : '';
-      if (title.length < 15) continue;
-      const url    = linkM ? linkM[1].trim() : '';
-      const year   = dateM ? (new Date(dateM[1]).getFullYear() || new Date().getFullYear()) : new Date().getFullYear();
-      items.push({ title, outlet, url, year, weight });
+function outletWeight(url) {
+  try {
+    const host = new URL(url).hostname.replace('www.', '');
+    for (const [domain, w] of Object.entries(OUTLET_WEIGHTS)) {
+      if (host.includes(domain)) return w;
     }
+  } catch {}
+  return 2;
+}
+
+function parseRSSItems(xml, defaultOutlet, defaultWeight) {
+  const items = [];
+  // RSS 2.0 items
+  for (const m of xml.matchAll(/<item[^>]*>([\s\S]*?)<\/item>/g)) {
+    const b = m[1];
+    const titleM  = b.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
+    const linkM   = b.match(/<link[^>]*>(?:<!\[CDATA\[)?(https?:[^\s<"]+)/) ||
+                    b.match(/<link[^>]*href="([^"]+)"/);
+    const sourceM = b.match(/<source[^>]*>([\s\S]*?)<\/source>/) ||
+                    b.match(/<dc:source[^>]*>([\s\S]*?)<\/dc:source>/);
+    const dateM   = b.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/);
+    const title   = titleM ? stripHtml(titleM[1]).trim() : '';
+    if (title.length < 15) continue;
+    const url     = linkM ? linkM[1].trim() : '';
+    const outlet  = sourceM ? stripHtml(sourceM[1]).trim() : defaultOutlet;
+    const weight  = url ? outletWeight(url) : defaultWeight;
+    const year    = dateM ? (new Date(dateM[1]).getFullYear() || 2024) : 2024;
+    items.push({ title, outlet, url, year, weight });
   }
   return items;
 }
 
-// Keyword relevance score for an article title against search terms
-function articleRelevance(title, requiredTerms, synonyms) {
-  const text = title.toLowerCase();
-  const allTerms = [...(requiredTerms || []), ...(synonyms || [])].map(t => t.toLowerCase());
-  return allTerms.some(t => text.includes(t));
+// SOURCE 1: Google News RSS search — most reliable, topic-specific
+async function fetchGoogleNewsRSS(searchQuery) {
+  // Google News RSS search endpoint — returns articles matching the query
+  // from hundreds of outlets. No auth, no rate limit for reasonable use.
+  const q = encodeURIComponent(searchQuery);
+  const url = `https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`;
+  
+  const res = await fetch(url, {
+    signal:  AbortSignal.timeout(10000),
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; Verity/6.0; +https://verity.science)',
+      'Accept':     'application/rss+xml, application/xml, text/xml',
+    }
+  });
+  if (!res.ok) throw new Error(`Google News ${res.status}`);
+  const xml = await res.text();
+  
+  const items = parseRSSItems(xml, 'Google News', 3);
+  // Google News titles often have " - Outlet Name" suffix — clean it
+  return items.map(a => ({
+    ...a,
+    title:  a.title.replace(/\s+[-–—]\s+[^-–—]+$/, '').trim() || a.title,
+    outlet: a.title.match(/[-–—]\s+([^-–—]+)$/)?.[1]?.trim() || a.outlet,
+  }));
 }
 
-async function fetchRSSMedia(frame) {
-  const required = frame.requiredTerms || [];
-  const synonyms = frame.synonyms      || [];
+// SOURCE 2: Bing News RSS — good fallback, different index
+async function fetchBingNewsRSS(searchQuery) {
+  const q = encodeURIComponent(searchQuery);
+  const url = `https://www.bing.com/news/search?q=${q}&format=rss`;
+  
+  const res = await fetch(url, {
+    signal:  AbortSignal.timeout(10000),
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; Verity/6.0; +https://verity.science)',
+    }
+  });
+  if (!res.ok) throw new Error(`Bing News ${res.status}`);
+  const xml = await res.text();
+  return parseRSSItems(xml, 'Bing News', 3);
+}
 
-  // Fetch all feeds in parallel, tolerate individual failures
+// SOURCE 3: Curated outlet RSS feeds — broad current coverage
+const CURATED_FEEDS = [
+  { url: 'https://feeds.bbci.co.uk/news/health/rss.xml',    outlet: 'BBC Health',    weight: 4 },
+  { url: 'https://www.theguardian.com/science/rss',          outlet: 'The Guardian',  weight: 4 },
+  { url: 'https://rss.sciencedaily.com/rss/health_medicine.xml', outlet: 'Science Daily', weight: 3 },
+  { url: 'https://www.statnews.com/feed/',                   outlet: 'STAT News',     weight: 3 },
+  { url: 'https://feeds.reuters.com/reuters/healthNews',     outlet: 'Reuters Health',weight: 4 },
+];
+
+async function fetchCuratedFeeds(requiredTerms, synonyms) {
+  const allTerms = [...(requiredTerms || []), ...(synonyms || [])]
+    .map(t => t.toLowerCase()).filter(t => t.length > 2);
+  
   const results = await Promise.allSettled(
-    RSS_FEEDS.map(feed =>
+    CURATED_FEEDS.map(feed =>
       fetch(feed.url, {
         signal:  AbortSignal.timeout(8000),
-        headers: { 'User-Agent': 'Verity/6.0 RSS Reader (hello@verity.science)' }
+        headers: { 'User-Agent': 'Verity/6.0 (hello@verity.science)' }
       })
-      .then(r => r.ok ? r.text() : Promise.reject(new Error(`${r.status}`)))
-      .then(xml => parseRSS(xml, feed.outlet, feed.weight))
-      .catch(e => { console.warn(`  RSS ${feed.outlet}: ${e.message}`); return []; })
+      .then(r => r.ok ? r.text() : Promise.reject(new Error(r.status)))
+      .then(xml => parseRSSItems(xml, feed.outlet, feed.weight))
+      .then(items => allTerms.length > 0
+        ? items.filter(a => allTerms.some(t => a.title.toLowerCase().includes(t)))
+        : items
+      )
+      .catch(() => [])
     )
   );
-
-  const allArticles = results
-    .filter(r => r.status === 'fulfilled')
-    .flatMap(r => r.value);
-
-  // Filter to topic-relevant articles
-  const relevant = allArticles.filter(a => articleRelevance(a.title, required, synonyms));
-
-  // Dedupe by title
-  const seen = new Set();
-  const deduped = relevant.filter(a => {
-    const k = a.title.toLowerCase().slice(0, 80);
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
-
-  console.log(`  RSS: ${allArticles.length} total → ${deduped.length} relevant`);
-  return deduped.slice(0, 20);
+  
+  return results.filter(r => r.status === 'fulfilled').flatMap(r => r.value);
 }
 
-// GDELT as backup — called only if RSS fails to yield enough articles
+// GDELT as last resort
 async function fetchGDELTFallback(gdeltQuery) {
   const start = new Date();
   start.setFullYear(start.getFullYear() - 2);
   const sd = start.toISOString().slice(0,10).replace(/-/g,'') + '000000';
-
   for (const q of [`"${gdeltQuery}" sourcelang:english`, `${gdeltQuery} sourcelang:english`]) {
     try {
       const params = new URLSearchParams({ query: q, mode: 'artlist', maxrecords: '20', format: 'json', STARTDATETIME: sd, sort: 'datedesc' });
@@ -748,28 +775,65 @@ async function fetchGDELTFallback(gdeltQuery) {
       const data = await res.json();
       const arts = (data.articles || []).filter(a => a.title?.length > 20).slice(0, 15)
         .map(a => ({ title: stripHtml(a.title), outlet: a.domain || 'Unknown', url: a.url, year: a.seendate ? parseInt(a.seendate.slice(0,4)) : 2024, weight: 2 }));
-      if (arts.length > 0) { console.log(`  GDELT fallback: ${arts.length}`); return arts; }
-    } catch (e) { console.warn(`  GDELT fallback error: ${e.message}`); }
+      if (arts.length > 0) { console.log(`  GDELT: ${arts.length}`); return arts; }
+    } catch (e) { console.warn(`  GDELT: ${e.message}`); }
   }
   return [];
 }
 
-// Combined media fetch: RSS primary, GDELT fallback
+// Build the search query from the frame — use gdeltQuery + synonyms
+function buildNewsSearchQuery(frame) {
+  const base = frame.gdeltQuery || (frame.requiredTerms || []).join(' ');
+  const syns = (frame.synonyms || []).slice(0, 2).join(' OR ');
+  return syns ? `${base} OR ${syns}` : base;
+}
+
+// Combined media fetch with fallback cascade
 async function fetchMedia(frame) {
-  const rssArticles = await fetchRSSMedia(frame);
-  if (rssArticles.length >= 4) return rssArticles;
-  // Not enough from RSS — try GDELT
-  console.log(`  RSS yielded only ${rssArticles.length}, trying GDELT fallback...`);
-  const gdeltArticles = await fetchGDELTFallback(frame.gdeltQuery || '');
-  const combined = [...rssArticles, ...gdeltArticles];
-  // Dedupe again
+  const searchQuery = buildNewsSearchQuery(frame);
+  console.log(`  News search: "${searchQuery}"`);
+  
+  // Try all sources in parallel for speed
+  const [googleRes, bingRes, curatedRes] = await Promise.allSettled([
+    fetchGoogleNewsRSS(searchQuery),
+    fetchBingNewsRSS(searchQuery),
+    fetchCuratedFeeds(frame.requiredTerms, frame.synonyms),
+  ]);
+  
+  const logR = (r, n) => r.status === 'fulfilled' ? `${n}:${r.value.length}` : `${n}:ERR`;
+  console.log(`  Media sources: ${logR(googleRes,'Google')} ${logR(bingRes,'Bing')} ${logR(curatedRes,'Curated')}`);
+  
+  const all = [
+    ...(googleRes.status  === 'fulfilled' ? googleRes.value  : []),
+    ...(bingRes.status    === 'fulfilled' ? bingRes.value    : []),
+    ...(curatedRes.status === 'fulfilled' ? curatedRes.value : []),
+  ];
+  
+  // Dedupe by title
   const seen = new Set();
-  return combined.filter(a => {
-    const k = a.title.toLowerCase().slice(0, 80);
+  const deduped = all.filter(a => {
+    const k = a.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 60);
     if (seen.has(k)) return false;
     seen.add(k); return true;
   });
+  
+  if (deduped.length >= 4) {
+    console.log(`  Media: ${deduped.length} articles (no GDELT needed)`);
+    return deduped.slice(0, 20);
+  }
+  
+  // Last resort: GDELT
+  console.log(`  Only ${deduped.length} articles, trying GDELT...`);
+  const gdelt = await fetchGDELTFallback(frame.gdeltQuery || searchQuery);
+  const final = [...deduped, ...gdelt].filter(a => {
+    const k = a.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 60);
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+  console.log(`  Media final: ${final.length} articles`);
+  return final.slice(0, 20);
 }
+
 
 async function analyzeMedia(plain, articles, frame) {
   if (!articles || articles.length === 0) return { stances: [], leftPct: 50, rightPct: 50 };
