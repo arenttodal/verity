@@ -169,6 +169,8 @@ header { display: flex; align-items: center; justify-content: space-between; pad
 .ai-tag { font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.07); padding: 3px 8px; border-radius: 3px; display: inline-block; margin-bottom: 13px; }
 .ai-text { font-size: 13px; line-height: 1.80; color: rgba(255,255,255,0.52); font-weight: 300; }
 .ai-text strong { color: rgba(255,255,255,0.82); font-weight: 500; }
+.ai-text p { margin-bottom: 1.3em; }
+.ai-text p:last-child { margin-bottom: 0; }
 
 /* ══════════════════════════════════════════════
    SIDEBAR PANEL
@@ -609,7 +611,6 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
         <!-- Science stem (pin floats above bar, stem points down to it) -->
         <div class="stem-row" id="sciRow">
           <div class="pin pin-science" id="pinScience" style="left:50%">
-            <span class="pin-label">Science</span>
             <div class="pin-circle"></div>
             <div class="pin-stem"></div>
           </div>
@@ -627,7 +628,6 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
           <div class="pin pin-media" id="pinMedia" style="left:50%">
             <div class="pin-stem"></div>
             <div class="pin-circle"></div>
-            <span class="pin-label">Media</span>
           </div>
         </div>
 
@@ -1548,7 +1548,18 @@ function populateFromData(data) {
   }
 
   // 3. AI synthesis
-  el('.ai-text').innerHTML = analysis.summary || '—';
+  // Ensure synthesis text renders with proper paragraph breaks
+  let summaryHtml = analysis.summary || '—';
+  // If it's plain paragraphs separated by double newlines or <br><br>, wrap in <p> tags
+  if (!summaryHtml.includes('<p>')) {
+    summaryHtml = summaryHtml
+      .split(/\n\n|<br\s*\/?><br\s*\/?>/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0)
+      .map(s => `<p>${s}</p>`)
+      .join('');
+  }
+  el('.ai-text').innerHTML = summaryHtml;
 
   // 4. Build dynamic strip data
   // Build a stance lookup by doi
@@ -1598,12 +1609,12 @@ function populateFromData(data) {
   window._sciPct = sciPct;
   window._medPct = medPct;
 
-  // 5. Rebuild strip
-  buildStrip();
-
-  // 6. Show results
+  // 5. Show results first so SVG has a rendered width, then build strip
   document.getElementById('resultsSections').style.display = 'block';
   document.getElementById('resultsSections').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Defer buildStrip until browser has painted and SVG clientWidth is non-zero
+  requestAnimationFrame(() => requestAnimationFrame(() => buildStrip()));
 }
 
 document.getElementById('searchInput').addEventListener('keydown', e => {
