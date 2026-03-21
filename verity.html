@@ -1008,7 +1008,7 @@ function buildStrip() {
       hit.setAttribute('x', sx - 5);
       hit.setAttribute('y', Math.min(y1, y2) - 4);
       hit.setAttribute('width', 10);
-      hit.setAttribute('height', tickH + 8);
+      hit.setAttribute('height', Math.max(8, (tickH || 8) + 8));
       hit.setAttribute('fill', 'transparent');
       hit.setAttribute('cursor', 'pointer');
       attachTickTip(hit, d, currentLayer);
@@ -1027,10 +1027,13 @@ function buildStrip() {
     el.style.cursor = 'pointer';
   }
 
+  // Clamp weight to valid TICK_H index [1-5]. If weight missing/invalid use 2.
+  const safeH = d => TICK_H[Math.min(5, Math.max(1, Math.round(d.weight) || 2))];
+
   if (showSci) drawTicks(
     scienceDots,
-    d => axisY - TICK_H[d.weight],
-    d => TICK_H[d.weight],
+    d => axisY - safeH(d),
+    d => safeH(d),
     d => SCI_COLOR[d.type] || 'rgba(220,225,240,0.55)',
     true, 'science'
   );
@@ -1038,16 +1041,21 @@ function buildStrip() {
   if (showMed) drawTicks(
     mediaDots,
     d => axisY,
-    d => Math.round(TICK_H[d.weight] * 0.75),
+    d => Math.max(4, Math.round(safeH(d) * 0.75)),
     d => MED_COLOR,
     false, 'media'
   );
 
   // ── AVERAGE MARKERS — instrument blades, consistent for both rails ──
   function drawAvg(dots, above, color, label) {
-    const tw = dots.reduce((s,d) => s + d.weight, 0);
-    const ax = dots.reduce((s,d) => s + d.x * d.weight, 0) / tw;
+    // Guard: skip if no dots or weights sum to zero
+    if (!dots || dots.length === 0) return;
+    const tw = dots.reduce((s,d) => s + (d.weight || 2), 0);
+    if (!tw || tw === 0) return;
+    const ax = dots.reduce((s,d) => s + d.x * (d.weight || 2), 0) / tw;
+    if (isNaN(ax)) return;
     const nx = tx(ax);
+    if (isNaN(nx)) return;
 
     const bladeLen = above ? 20 : 20;
 
@@ -1604,13 +1612,22 @@ function populateFromData(data) {
     const stance  = s.stance || 'mixed';
     const type    = s.type   || (p.design === 'meta' ? 'meta' : p.design === 'rct' ? 'rct' : p.design === 'cohort' ? 'cohort' : 'obs');
     const x       = stanceToX(stance, p.weight);
+    // weight: use server value if present, else derive from citations
+    const w = p.weight || (
+      (p.citations || 0) >= 400 ? 5 :
+      (p.citations || 0) >= 150 ? 4 :
+      (p.citations || 0) >= 50  ? 3 :
+      (p.citations || 0) >= 10  ? 2 : 1
+    );
+    // boost meta-analyses by 1
+    const weight = Math.min(5, type === 'meta' ? w + 1 : w);
     scienceDots.push({
       title:    p.title,
       journal:  p.journal,
       year:     p.year,
       cites:    p.citations,
       x,
-      weight:   p.weight,
+      weight,
       type,
       doi:      p.doi,
       abstract: p.abstract,
@@ -1621,13 +1638,14 @@ function populateFromData(data) {
   // Map media → mediaDots format
   mediaDots.length = 0;
   (media || []).forEach(m => {
+    const mWeight = Math.min(4, Math.max(1, Math.round(m.weight) || 2));
     mediaDots.push({
       title:   m.title,
       outlet:  m.outlet,
       url:     m.url,
       year:    m.year,
-      x:       mediaStanceToX(m.stance, m.weight),
-      weight:  m.weight,
+      x:       mediaStanceToX(m.stance, mWeight),
+      weight:  mWeight,
       type:    'media',
       framing: m.framing
     });

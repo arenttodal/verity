@@ -182,6 +182,9 @@ async function fetchSemanticScholar(query, limit = 25) {
       const types  = p.publicationTypes || [];
       const isMeta = types.some(t => ['Review', 'Meta-Analysis', 'SystematicReview'].includes(t));
       const isRCT  = types.some(t => t === 'ClinicalTrial');
+      const cites = p.citationCount || 0;
+      const citW  = cites >= 400 ? 5 : cites >= 150 ? 4 : cites >= 50 ? 3 : cites >= 10 ? 2 : 1;
+      const design = isMeta ? 'meta' : isRCT ? 'rct' : 'unknown';
       return {
         title:     stripHtml(p.title || ''),
         abstract:  p.abstract,
@@ -189,8 +192,9 @@ async function fetchSemanticScholar(query, limit = 25) {
         journal:   p.journal?.name || 'Unknown',
         doi:       p.externalIds?.DOI    || null,
         pmid:      p.externalIds?.PubMed || null,
-        citations: p.citationCount || 0,
-        design:    isMeta ? 'meta' : isRCT ? 'rct' : 'unknown',
+        citations: cites,
+        weight:    Math.min(5, design === 'meta' ? citW + 1 : citW),
+        design,
         source:    'semantic',
       };
     });
@@ -252,6 +256,7 @@ function parsePubMedXML(xml) {
     const isRCT  = pubTypes.some(t => /randomized controlled trial|clinical trial/i.test(t));
     const isCohort = pubTypes.some(t => /observational|cohort/i.test(t));
 
+    const pmDesign = isMeta ? 'meta' : isRCT ? 'rct' : isCohort ? 'cohort' : 'unknown';
     papers.push({
       title, abstract,
       year:      yearM ? parseInt(yearM[1]) : 2020,
@@ -259,7 +264,8 @@ function parsePubMedXML(xml) {
       doi:       doiM  ? doiM[1].trim()  : null,
       pmid:      pmidM ? pmidM[1]        : null,
       citations: 0,
-      design:    isMeta ? 'meta' : isRCT ? 'rct' : isCohort ? 'cohort' : 'unknown',
+      weight:    pmDesign === 'meta' ? 4 : pmDesign === 'rct' ? 3 : 2,
+      design:    pmDesign,
       source:    'pubmed',
     });
   }
@@ -291,6 +297,9 @@ async function fetchOpenAlex(query, limit = 15) {
     const abstract = pos.filter(Boolean).join(' ').trim();
     if (abstract.length < 80) return null;
     const isReview = (w.type || '').toLowerCase().includes('review');
+    const oaCites  = w.cited_by_count || 0;
+    const oaCitW   = oaCites >= 400 ? 5 : oaCites >= 150 ? 4 : oaCites >= 50 ? 3 : oaCites >= 10 ? 2 : 1;
+    const oaDesign = isReview ? 'meta' : 'unknown';
     return {
       title:     stripHtml(w.title || ''),
       abstract,
@@ -298,8 +307,9 @@ async function fetchOpenAlex(query, limit = 15) {
       journal:   stripHtml(w.primary_location?.source?.display_name || 'Unknown'),
       doi:       w.doi ? w.doi.replace('https://doi.org/', '') : null,
       pmid:      null,
-      citations: w.cited_by_count || 0,
-      design:    isReview ? 'meta' : 'unknown',
+      citations: oaCites,
+      weight:    Math.min(5, oaDesign === 'meta' ? oaCitW + 1 : oaCitW),
+      design:    oaDesign,
       source:    'openalex',
     };
   }).filter(Boolean);
@@ -629,31 +639,41 @@ async function fetchGDELT(query) {
   const start = new Date();
   start.setFullYear(start.getFullYear() - 2);
   const sd = start.toISOString().slice(0,10).replace(/-/g,'') + '000000';
-  const params = new URLSearchParams({
-    query: `"${query}" sourcelang:english`,
-    mode: 'artlist', maxrecords: '20',
-    format: 'json', STARTDATETIME: sd, sort: 'datedesc'
-  });
-  try {
-    const res = await fetch(
-      `https://api.gdeltproject.org/api/v2/doc/doc?${params}`,
-      { signal: AbortSignal.timeout(8000) }
-    );
-    if (!res.ok) throw new Error(`GDELT ${res.status}`);
-    const data = await res.json();
-    return (data.articles || [])
-      .filter(a => a.title?.length > 20).slice(0, 15)
-      .map(a => ({
-        title:  stripHtml(a.title),
-        outlet: a.domain || 'Unknown',
-        url:    a.url,
-        year:   a.seendate ? parseInt(a.seendate.slice(0,4)) : 2024,
-        weight: 3,
-      }));
-  } catch (e) {
-    console.warn('  GDELT:', e.message);
-    return [];
+
+  // Try quoted query first, then unquoted fallback
+  const queries = [`"${query}" sourcelang:english`, `${query} sourcelang:english`];
+
+  for (const q of queries) {
+    const params = new URLSearchParams({
+      query: q, mode: 'artlist', maxrecords: '25',
+      format: 'json', STARTDATETIME: sd, sort: 'datedesc'
+    });
+    try {
+      const res = await fetch(
+        `https://api.gdeltproject.org/api/v2/doc/doc?${params}`,
+        { signal: AbortSignal.timeout(12000) }
+      );
+      if (!res.ok) { console.warn(`  GDELT attempt failed: ${res.status}`); continue; }
+      const data = await res.json();
+      const articles = (data.articles || [])
+        .filter(a => a.title?.length > 20).slice(0, 15)
+        .map(a => ({
+          title:  stripHtml(a.title),
+          outlet: a.domain || 'Unknown',
+          url:    a.url,
+          year:   a.seendate ? parseInt(a.seendate.slice(0,4)) : 2024,
+          weight: 3,
+        }));
+      if (articles.length > 0) {
+        console.log(`  GDELT: ${articles.length} articles`);
+        return articles;
+      }
+    } catch (e) {
+      console.warn(`  GDELT attempt error: ${e.message}`);
+    }
   }
+  console.warn('  GDELT: all attempts failed, returning empty');
+  return [];
 }
 
 async function analyzeMedia(plain, articles, frame) {
