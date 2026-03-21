@@ -25,7 +25,9 @@
 const express   = require('express');
 const cors      = require('cors');
 const path      = require('path');
+const crypto    = require('crypto');
 const Anthropic = require('@anthropic-ai/sdk');
+const { Pool }  = require('pg');
 require('dotenv').config();
 
 const app = express();
@@ -35,8 +37,158 @@ app.use(express.static(path.join(__dirname)));
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// ─────────────────────────────────────────────────────────────────
+//  DATABASE — PostgreSQL cache layer
+//  CONNECTION: Railway sets DATABASE_URL automatically when you
+//  provision a Postgres instance. If not set, caching is skipped
+//  gracefully and the pipeline runs fresh every time.
+// ─────────────────────────────────────────────────────────────────
+let db = null;
+
+if (process.env.DATABASE_URL) {
+  db = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false },
+    max: 5,
+  });
+  db.on('error', err => console.error('DB pool error:', err.message));
+}
+
+async function initDB() {
+  if (!db) return;
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS query_cache (
+        id           SERIAL PRIMARY KEY,
+        query_hash   CHAR(64) UNIQUE NOT NULL,
+        query_raw    TEXT NOT NULL,
+        query_plain  TEXT,
+        result_json  JSONB NOT NULL,
+        paper_count  INT,
+        certainty    TEXT,
+        score        INT,
+        hit_count    INT DEFAULT 1,
+        created_at   TIMESTAMPTZ DEFAULT NOW(),
+        updated_at   TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_query_hash ON query_cache(query_hash);
+      CREATE INDEX IF NOT EXISTS idx_updated    ON query_cache(updated_at);
+    `);
+    console.log('✓ DB cache table ready');
+  } catch (e) {
+    console.warn('DB init failed:', e.message);
+    db = null; // disable cache if init fails
+  }
+}
+
+// Normalise query for consistent cache hits
+// "Is a vegan diet healthy?" and "vegan diet health" should share a cache key
+function normaliseQuery(raw) {
+  return raw.toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\b(is|are|does|do|can|will|what|the|a|an|in|of|for|and|or|to|how)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .sort()      // order-independent: "diet vegan" = "vegan diet"
+    .join(' ');
+}
+
+function queryHash(raw) {
+  return crypto.createHash('sha256').update(normaliseQuery(raw)).digest('hex');
+}
+
+const CACHE_TTL_DAYS = 30;
+
+async function getCached(raw) {
+  if (!db) return null;
+  try {
+    const hash = queryHash(raw);
+    const r = await db.query(
+      `SELECT result_json, certainty, score, paper_count, created_at, hit_count
+       FROM query_cache
+       WHERE query_hash = $1
+         AND updated_at > NOW() - INTERVAL '${CACHE_TTL_DAYS} days'`,
+      [hash]
+    );
+    if (!r.rows.length) return null;
+    // Increment hit count asynchronously
+    db.query('UPDATE query_cache SET hit_count = hit_count + 1 WHERE query_hash = $1', [hash])
+      .catch(() => {});
+    console.log(`  ✓ CACHE HIT (${r.rows[0].hit_count + 1} hits, created ${r.rows[0].created_at.toISOString().slice(0,10)})`);
+    return r.rows[0].result_json;
+  } catch (e) {
+    console.warn('Cache read error:', e.message);
+    return null;
+  }
+}
+
+async function setCached(raw, plain, result, scoring) {
+  if (!db) return;
+  try {
+    const hash = queryHash(raw);
+    await db.query(
+      `INSERT INTO query_cache (query_hash, query_raw, query_plain, result_json, paper_count, certainty, score)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (query_hash) DO UPDATE SET
+         result_json = EXCLUDED.result_json,
+         paper_count = EXCLUDED.paper_count,
+         certainty   = EXCLUDED.certainty,
+         score       = EXCLUDED.score,
+         updated_at  = NOW(),
+         hit_count   = query_cache.hit_count + 1`,
+      [hash, raw, plain, JSON.stringify(result), result.meta?.paperCount || 0, scoring.certainty, scoring.score]
+    );
+    console.log('  ✓ Result cached');
+  } catch (e) {
+    console.warn('Cache write error:', e.message);
+  }
+}
+
+// Admin: force-refresh a specific query
+app.delete('/api/cache', async (req, res) => {
+  if (!db) return res.json({ ok: false, reason: 'no database' });
+  const { query, all } = req.body;
+  if (all) {
+    await db.query('DELETE FROM query_cache').catch(() => {});
+    return res.json({ ok: true, action: 'cleared all' });
+  }
+  if (query) {
+    await db.query('DELETE FROM query_cache WHERE query_hash = $1', [queryHash(query)]).catch(() => {});
+    return res.json({ ok: true, action: `cleared: ${query}` });
+  }
+  res.status(400).json({ error: 'provide query or all:true' });
+});
+
+// Admin: inspect cache stats
+app.get('/api/cache/stats', async (req, res) => {
+  if (!db) return res.json({ enabled: false });
+  try {
+    const r = await db.query(`
+      SELECT COUNT(*) as total,
+             AVG(hit_count)::INT as avg_hits,
+             MIN(created_at) as oldest,
+             MAX(updated_at) as newest
+      FROM query_cache
+    `);
+    const top = await db.query(`
+      SELECT query_raw, certainty, score, hit_count, updated_at
+      FROM query_cache ORDER BY hit_count DESC LIMIT 10
+    `);
+    res.json({ enabled: true, stats: r.rows[0], top_queries: top.rows });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/', (_, res) => res.sendFile(path.join(__dirname, 'verity.html')));
-app.get('/health', (_, res) => res.json({ ok: true, version: '6.0' }));
+app.get('/health', async (_, res) => {
+  const dbOk = db ? await db.query('SELECT 1').then(() => true).catch(() => false) : false;
+  res.json({ ok: true, version: '7.0', cache: dbOk ? 'connected' : (db ? 'error' : 'disabled') });
+});
 
 // ─────────────────────────────────────────────────────────────────
 //  UTILS
@@ -922,12 +1074,22 @@ async function analyzeMedia(plain, articles, frame) {
 //  MAIN ENDPOINT
 // ─────────────────────────────────────────────────────────────────
 app.post('/api/search', async (req, res) => {
-  const { query } = req.body;
+  const { query, forceRefresh } = req.body;
   if (!query?.trim()) return res.status(400).json({ error: 'query is required' });
 
   const t0 = Date.now();
   console.log(`\n${'═'.repeat(60)}`);
   console.log(`[${new Date().toISOString()}] "${query}"`);
+
+  // ── CACHE CHECK ──────────────────────────────────────────────
+  if (!forceRefresh) {
+    const cached = await getCached(query);
+    if (cached) {
+      cached.meta = { ...cached.meta, fromCache: true, durationMs: Date.now() - t0 };
+      return res.json(cached);
+    }
+  }
+  console.log('  Cache miss — running full pipeline...');
 
   try {
     // ── 1. Frame the query ────────────────────────────────────────
@@ -1060,7 +1222,7 @@ app.post('/api/search', async (req, res) => {
     console.log(`  ✓ Done in ${Date.now()-t0}ms | sources: ${JSON.stringify(sourceCounts)}`);
     console.log(`${'═'.repeat(60)}`);
 
-    res.json({
+    const result = {
       queryMeta: {
         plain:       frame.plain,
         leftSide:    frame.leftClaim,
@@ -1100,11 +1262,17 @@ app.post('/api/search', async (req, res) => {
         contradiction: scoring.contradiction,
         score:         scoring.score,
         durationMs:    Date.now() - t0,
-        algorithm:     'v6-hard-filter-deterministic-scoring',
+        algorithm:     'v7-cached-deterministic',
         requiredTerms: frame.requiredTerms,
         synonyms:      frame.synonyms,
+        fromCache:     false,
       }
-    });
+    };
+
+    // Store in cache (async — don't block response)
+    setCached(query, frame.plain, result, scoring).catch(() => {});
+
+    res.json(result);
 
   } catch (err) {
     console.error('  ✗ FATAL:', err.message);
@@ -1115,10 +1283,11 @@ app.post('/api/search', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`\n🔬 Verity v6.0 → http://localhost:${PORT}`);
+app.listen(PORT, async () => {
+  await initDB();
+  console.log(`\n🔬 Verity v7.0 → http://localhost:${PORT}`);
   console.log('   Sources:  Semantic Scholar + PubMed + OpenAlex (parallel)');
+  console.log('   Cache:    ' + (db ? `PostgreSQL (${CACHE_TTL_DAYS}-day TTL)` : 'disabled (no DATABASE_URL)'));
   console.log('   Filter:   HARD — requiredTerms/synonyms MUST appear in paper text');
-  console.log('   Scoring:  w=D×B×P×R×U | c=S×M×w (fully deterministic)');
-  console.log('   Synthesis: Claude writes prose from pre-computed scores only\n');
+  console.log('   Scoring:  w=D×B×P×R×U | c=S×M×w (fully deterministic)\n');
 });

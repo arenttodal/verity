@@ -172,6 +172,58 @@ header { display: flex; align-items: center; justify-content: space-between; pad
 .ai-text p { margin-bottom: 1.3em; }
 .ai-text p:last-child { margin-bottom: 0; }
 
+/* ── CERTAINTY BADGE ── */
+.certainty-row {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 20px; flex-wrap: wrap;
+}
+
+.certainty-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 12px 6px 8px;
+  border-radius: 7px; cursor: default;
+  font-family: 'DM Mono', monospace;
+  font-size: 9px; letter-spacing: 0.10em; text-transform: uppercase;
+  border: 1px solid; transition: all 0.2s;
+  position: relative;
+}
+
+.certainty-badge .cb-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+
+.certainty-badge.cert-high     { background: rgba(80,190,120,0.08); border-color: rgba(80,190,120,0.25); color: rgba(80,190,120,0.90); }
+.certainty-badge.cert-moderate { background: rgba(200,175,60,0.08); border-color: rgba(200,175,60,0.25); color: rgba(200,175,60,0.85); }
+.certainty-badge.cert-low      { background: rgba(200,130,60,0.08); border-color: rgba(200,130,60,0.25); color: rgba(200,130,60,0.80); }
+.certainty-badge.cert-vlow     { background: rgba(200,80,80,0.08);  border-color: rgba(200,80,80,0.25);  color: rgba(200,80,80,0.80); }
+
+.certainty-badge .cb-dot.cert-high     { background: rgba(80,190,120,0.85); }
+.certainty-badge .cb-dot.cert-moderate { background: rgba(200,175,60,0.85); }
+.certainty-badge .cb-dot.cert-low      { background: rgba(200,130,60,0.85); }
+.certainty-badge .cb-dot.cert-vlow     { background: rgba(200,80,80,0.85);  }
+
+/* Tooltip on hover */
+.certainty-badge .cb-tooltip {
+  display: none; position: absolute; bottom: calc(100% + 8px); left: 0;
+  background: rgba(10,11,20,0.97); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; padding: 10px 13px; width: 220px;
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 11px; line-height: 1.55; letter-spacing: 0;
+  text-transform: none; color: rgba(255,255,255,0.55);
+  backdrop-filter: blur(12px); z-index: 20; pointer-events: none;
+}
+.certainty-badge:hover .cb-tooltip { display: block; }
+.certainty-badge .cb-tooltip strong { color: rgba(255,255,255,0.82); font-weight: 500; }
+
+/* Cache indicator */
+.cache-badge {
+  font-family: 'DM Mono', monospace; font-size: 7.5px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: rgba(255,255,255,0.15); padding: 4px 8px;
+  border: 1px solid rgba(255,255,255,0.05); border-radius: 4px;
+}
+.cache-badge.from-cache { color: rgba(100,180,255,0.35); border-color: rgba(100,180,255,0.12); }
+
 /* ══════════════════════════════════════════════
    SIDEBAR PANEL
 ══════════════════════════════════════════════ */
@@ -582,7 +634,15 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
   <!-- ══ 1. CONSENSUS ══ -->
   <div class="section">
     <div class="section-head">
-      <div class="section-title">Consensus Overview · 2020–2025</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1;">
+        <div class="section-title">Consensus Overview</div>
+        <div id="certaintyBadge" class="certainty-badge cert-vlow" style="display:none;">
+          <div class="cb-dot cert-vlow" id="certDot"></div>
+          <span id="certLabel">Very Low certainty</span>
+          <div class="cb-tooltip" id="certTooltip">Loading...</div>
+        </div>
+        <div id="cacheBadge" class="cache-badge" style="display:none;">Cached</div>
+      </div>
       <div class="section-sub">All scientific findings carry an expiry date.</div>
     </div>
     <div class="section-body">
@@ -1540,8 +1600,50 @@ function mediaStanceToX(stance, weight) {
 function populateFromData(data) {
   const { queryMeta, papers, analysis, media, mediaAnalysis } = data;
 
-  // 1. Query title
+  // 1. Query title + certainty badge
   document.getElementById('queryTitle').textContent = queryMeta.plain || '';
+
+  // Certainty badge
+  const certainty = analysis.debate?.certainty || meta?.certainty || 'Very low';
+  const certKey   = certainty.toLowerCase().replace(/\s+/g, '_');
+  const certClass = { high: 'cert-high', moderate: 'cert-moderate', low: 'cert-low', very_low: 'cert-vlow' }[certKey] || 'cert-vlow';
+  const certColor = { high: 'rgba(80,190,120,0.85)', moderate: 'rgba(200,175,60,0.85)', low: 'rgba(200,130,60,0.85)', very_low: 'rgba(200,80,80,0.85)' }[certKey] || 'rgba(200,80,80,0.85)';
+
+  const contradiction = analysis.debate?.contradiction || 0;
+  const paperCount    = meta?.paperCount || papers.length;
+
+  const certExplainer = {
+    high:     `<strong>High certainty.</strong> ${paperCount} studies with consistent findings and strong methodology support this conclusion.`,
+    moderate: `<strong>Moderate certainty.</strong> Based on ${paperCount} studies. Some limitations in study design or consistency exist.`,
+    low:      `<strong>Low certainty.</strong> Only ${paperCount} relevant studies found, or studies have significant methodological limitations. Interpret with caution.`,
+    very_low: `<strong>Very low certainty.</strong> ${paperCount} studies available, with major gaps or high contradiction (index: ${contradiction.toFixed(2)}). Evidence is insufficient for confident conclusions.`,
+  }[certKey] || `Based on ${paperCount} studies.`;
+
+  // Add contradiction note if high
+  const contNote = contradiction > 0.35
+    ? ` <strong>Note:</strong> Evidence is genuinely contested — significant research points in both directions.`
+    : '';
+
+  const badge    = document.getElementById('certaintyBadge');
+  const dot      = document.getElementById('certDot');
+  const label    = document.getElementById('certLabel');
+  const tooltip  = document.getElementById('certTooltip');
+  badge.className  = `certainty-badge ${certClass}`;
+  dot.className    = `cb-dot ${certClass}`;
+  dot.style.background = certColor;
+  label.textContent    = certainty + ' certainty · ' + paperCount + ' studies';
+  tooltip.innerHTML    = certExplainer + contNote;
+  badge.style.display  = 'inline-flex';
+
+  // Cache badge
+  const cacheBadge = document.getElementById('cacheBadge');
+  if (meta?.fromCache) {
+    cacheBadge.style.display = 'inline-block';
+    cacheBadge.classList.add('from-cache');
+    cacheBadge.textContent   = '⚡ Cached result';
+  } else {
+    cacheBadge.style.display = 'none';
+  }
 
   // 2. Consensus bar — side labels
   const d = analysis.debate || {};
