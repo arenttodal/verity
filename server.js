@@ -1198,8 +1198,7 @@ async function claudeFilterMedia(articles, frame) {
 
   const block = candidates.map((a, i) =>
     `[${i}] "${a.title}"${a.snippet ? ' — ' + a.snippet.slice(0, 80) : ''}`
-  ).join('
-');
+  ).join('\n');
 
   const msg = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',

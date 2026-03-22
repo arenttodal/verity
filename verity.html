@@ -535,7 +535,8 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
 .hero-title em { font-style: italic; color: rgba(255,255,255,0.38); }
 .hero-sub {
   font-size: clamp(12px,3vw,13.5px); font-weight: 300; color: rgba(255,255,255,0.42);
-  max-width: 390px; line-height: 1.72; margin-bottom: 44px;
+  max-width: 460px; line-height: 1.72; margin-bottom: 44px;
+  transition: opacity 0.55s ease; min-height: 3.8em;
 }
 
 .search-wrap { width: 100%; max-width: 620px; }
@@ -714,7 +715,7 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
   <section class="hero" id="hero">
     <div class="hero-eyebrow">What does the science actually say?</div>
     <h1 class="hero-title">Search the <em>entire</em> body of published science</h1>
-    <p class="hero-sub">Verity aggregates peer-reviewed research and media coverage — no opinions, no headlines, just evidence.</p>
+    <p class="hero-sub" id="heroSub">Verity aggregates peer-reviewed research and media coverage — no opinions, no headlines, just evidence.</p>
     <div class="search-wrap">
       <div class="search-box">
         <svg class="s-icon" width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -2099,6 +2100,32 @@ document.getElementById('searchInput').addEventListener('keydown', e => {
 
 // Lock scroll on initial hero state — re-enabled when results or error appear
 document.documentElement.classList.add('hero-state');
+
+// ── ROTATING HERO TAGLINE ─────────────────────────────────────────
+const HERO_LINES = [
+  'Verity aggregates peer-reviewed research and media coverage — no opinions, no headlines, just evidence.',
+  'Every study is trying to prove it's right. We're here to show you how they're all a little wrong.',
+  'The algorithm does not penalise inaccuracy. It rewards attention.',
+  'The scientific community produces its most important work over decades. Social media operates on a cycle of days.',
+  'Knowing the evidence is pointing somewhere is not the same as knowing why.',
+  '"Should I drink coffee?" and "does coffee definitively cause longevity?" are not the same question. Science can answer the first.',
+  'See the whole picture, not just the loudest study.',
+];
+
+let _heroIdx = 0;
+const _heroEl = document.getElementById('heroSub');
+
+function rotateHeroLine() {
+  if (!_heroEl || document.getElementById('hero').classList.contains('compact')) return;
+  _heroEl.style.opacity = '0';
+  setTimeout(() => {
+    _heroIdx = (_heroIdx + 1) % HERO_LINES.length;
+    _heroEl.textContent = HERO_LINES[_heroIdx];
+    _heroEl.style.opacity = '1';
+  }, 560);
+}
+
+setInterval(rotateHeroLine, 7000);
 
 </script>
 </body>
