@@ -557,21 +557,27 @@ function hardFilter(papers, frame) {
 //  No scoring. No percentages. Pure extraction.
 // ─────────────────────────────────────────────────────────────────
 async function extractOutcomes(papers, frame) {
-  const BATCH_SIZE = 8;
-  const allExtractions = [];
+  const BATCH_SIZE = 12; // larger batches = fewer round-trips
+  const batches = [];
 
   for (let i = 0; i < papers.length; i += BATCH_SIZE) {
-    const batch = papers.slice(i, i + BATCH_SIZE);
-    const block = batch.map((p, j) => {
+    batches.push(papers.slice(i, i + BATCH_SIZE).map((p, j) => {
       const ref = p.doi  ? `doi:${p.doi}`  :
                   p.pmid ? `pmid:${p.pmid}` :
                   `paper-${i + j + 1}`;
-      return `[${i + j + 1}] REF:${ref}\nTitle: ${p.title}\nJournal: ${p.journal} (${p.year})\nAbstract: ${p.abstract.slice(0, 800)}`;
-    }).join('\n\n───\n\n');
+      return { p, ref, idx: i + j + 1 };
+    }));
+  }
+
+  // Run all batches in parallel instead of serially
+  const batchResults = await Promise.allSettled(batches.map(async (batch, bi) => {
+    const block = batch.map(({ p, ref, idx }) =>
+      `[${idx}] REF:${ref}\nTitle: ${p.title}\nJournal: ${p.journal} (${p.year})\nAbstract: ${p.abstract.slice(0, 800)}`
+    ).join('\n\n───\n\n');
 
     const msg = await anthropic.messages.create({
       model:      'claude-sonnet-4-20250514',
-      max_tokens: 2400,
+      max_tokens: 2800,
       system:     'Systematic review data extractor. Extract exactly what is stated in each abstract. Do not add interpretation beyond what is written. Respond ONLY with valid JSON.',
       messages: [{
         role: 'user',
@@ -626,13 +632,18 @@ MAGNITUDE: use stated effect sizes. If none stated, use language: "significantly
       }]
     });
 
-    try {
-      const parsed = parseJSON(msg.content[0].text);
-      allExtractions.push(...(parsed.extractions || []));
-    } catch (e) {
-      console.warn(`  Extraction batch ${i}–${i + BATCH_SIZE} failed:`, e.message);
+    const parsed = parseJSON(msg.content[0].text);
+    return parsed.extractions || [];
+  }));
+
+  const allExtractions = [];
+  batchResults.forEach((r, bi) => {
+    if (r.status === 'fulfilled') {
+      allExtractions.push(...r.value);
+    } else {
+      console.warn(`  Extraction batch ${bi} failed:`, r.reason?.message);
     }
-  }
+  });
 
   return allExtractions;
 }
