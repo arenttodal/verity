@@ -887,14 +887,36 @@ Now write the verdict for "${frame.plain}". Two sentences. Honest. Approachable.
 // ─────────────────────────────────────────────────────────────────
 
 const OUTLET_WEIGHTS = {
+  // Tier 4 — Peer-reviewed journals with news arms / top-tier science press
   'theguardian.com': 4, 'nytimes.com': 4, 'bbc.co.uk': 4, 'bbc.com': 4,
   'reuters.com': 4, 'washingtonpost.com': 4, 'nature.com': 4,
   'science.org': 4, 'nejm.org': 4, 'thelancet.com': 4, 'bmj.com': 4,
+  'jamanetwork.com': 4, 'cell.com': 4, 'pnas.org': 4,
+  'nih.gov': 4, 'cdc.gov': 4, 'who.int': 4,
+  'pubmed.ncbi.nlm.nih.gov': 4, 'cochranelibrary.com': 4,
+
+  // Tier 3 — Specialist science/health journalism, evidence-adjacent
   'statnews.com': 3, 'newscientist.com': 3, 'sciencedaily.com': 3,
   'healthline.com': 3, 'medicalnewstoday.com': 3, 'time.com': 3,
   'theatlantic.com': 3, 'vox.com': 3, 'webmd.com': 3,
-  'dailymail.co.uk': 2, 'nypost.com': 2, 'foxnews.com': 2,
+  'medscape.com': 3, 'medpagetoday.com': 3, 'healio.com': 3,
+  'sciencenews.org': 3, 'scientificamerican.com': 3,
+  'technologyreview.com': 3, 'theconversation.com': 3,
+  'arstechnica.com': 3, 'wired.com': 3,
+  'mayoclinic.org': 3, 'clevelandclinic.org': 3, 'hopkinsmedicine.org': 3,
+  'examine.com': 3, 'verywellhealth.com': 3, 'verywellmind.com': 3,
+  'psychiatryadvisor.com': 3, 'mdedge.com': 3,
+  'eurekaalert.org': 3,
+
+  // Tier 2 — General press with health sections, variable quality
+  'cnn.com': 2, 'nbcnews.com': 2, 'abcnews.go.com': 2,
+  'cbsnews.com': 2, 'usatoday.com': 2, 'forbes.com': 2,
+  'menshealth.com': 2, 'womenshealthmag.com': 2, 'prevention.com': 2,
+  'self.com': 2, 'health.com': 2, 'shape.com': 2,
+  'dailymail.co.uk': 2, 'nypost.com': 2,
   'huffingtonpost.com': 2, 'huffpost.com': 2,
+  'independent.co.uk': 2, 'telegraph.co.uk': 2, 'thetimes.co.uk': 2,
+  'foxnews.com': 2,
 };
 
 function domainWeight(url) {
@@ -1156,19 +1178,45 @@ Return ONLY:
 }
 
 // ── STEP 2: Fetch articles for all query variants in parallel ─────
+// Also runs targeted site: queries on specialist outlets that rarely
+// surface in general Google News results.
 async function fetchAllMediaVariants(queries, frame) {
   const fromYear = new Date().getFullYear() - 5;
   const fromDate = `${fromYear}-01-01`;
   const toDate   = new Date().toISOString().slice(0, 10);
 
-  // Run all queries across all sources in parallel
-  const allFetches = queries.flatMap(q => [
+  // Primary query (first / most specific) for targeted site searches
+  const primaryQ = queries[0] || frame.gdeltQuery || frame.intervention;
+
+  // Specialist science/health outlets — targeted site: queries via Google News
+  // These are the outlets most likely to cover research topics accurately
+  // but are underrepresented in general news searches.
+  const SPECIALIST_SITES = [
+    'statnews.com',
+    'medscape.com',
+    'medpagetoday.com',
+    'sciencenews.org',
+    'scientificamerican.com',
+    'theconversation.com',
+    'examine.com',
+    'eurekaalert.org',
+    'mayoclinic.org',
+    'verywellhealth.com',
+  ];
+
+  // One targeted Google News query per specialist site using the primary query
+  const siteQueries = SPECIALIST_SITES.map(site =>
+    fetchGoogleNewsDateRange(`${primaryQ} site:${site}`, fromYear).catch(() => [])
+  );
+
+  // General queries across all sources
+  const generalFetches = queries.flatMap(q => [
     fetchGuardian(q, fromDate, toDate, frame).catch(() => []),
     fetchGoogleNewsDateRange(q, fromYear).catch(() => []),
     fetchBingNewsDateRange(q, fromYear).catch(() => []),
   ]);
 
-  const results = await Promise.allSettled(allFetches);
+  const results = await Promise.allSettled([...generalFetches, ...siteQueries]);
   const all = results
     .filter(r => r.status === 'fulfilled')
     .flatMap(r => r.value);
