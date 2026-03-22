@@ -12,6 +12,8 @@
     secret:     window.BUGBOT_SECRET        || '',
     assetsUrl: (window.BUGBOT_ASSETS_URL    || '').replace(/\/$/, ''),
     turnstile:  window.BUGBOT_TURNSTILE_KEY || '',
+    triggerIcon:  window.BUGBOT_TRIGGER_ICON  || '🩹',
+    triggerColor: window.BUGBOT_TRIGGER_COLOR || 'rgba(200,40,40,0.88)',
     position:   window.BUGBOT_POSITION      || 'bottom-right',
     anchor:     window.BUGBOT_ANCHOR        || '',
     theme:      window.BUGBOT_THEME         || 'dark',
@@ -58,11 +60,11 @@
     :host{font-family:'Syne',sans-serif}
 
     #bb-trigger{position:fixed;${triggerPos()}width:32px;height:32px;border-radius:50%;
-      background:rgba(200,40,40,0.88);border:2px solid rgba(255,90,90,0.4);
+      background:${CFG.triggerColor};border:2px solid rgba(255,255,255,0.15);
       cursor:pointer;pointer-events:all;transition:all 0.2s;
       display:flex;align-items:center;justify-content:center;
-      box-shadow:0 0 10px rgba(220,50,50,0.5);user-select:none}
-    #bb-trigger:hover{transform:scale(1.12);background:rgba(220,50,50,1);box-shadow:0 0 18px rgba(220,50,50,0.7)}
+      box-shadow:0 2px 12px rgba(0,0,0,0.3);user-select:none}
+    #bb-trigger:hover{transform:scale(1.12);filter:brightness(1.2)}
     #bb-trigger.working{background:rgba(200,120,20,0.88);border-color:rgba(240,160,60,0.5);animation:pulse-ring 1.5s ease-in-out infinite}
     #bb-trigger.success{background:rgba(30,160,80,0.88);border-color:rgba(60,200,120,0.5)}
     #bb-trigger.queued {background:rgba(80,140,200,0.88);border-color:rgba(100,170,240,0.5)}
@@ -271,7 +273,7 @@
 
   const html = `
     <button id="bb-trigger" title="Share feedback">
-      <span style="font-size:14px;">🩹</span>
+      <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.9);font-family:'DM Mono',monospace;">${CFG.triggerIcon}</span>
     </button>
 
     <div id="bb-overlay" role="dialog" aria-modal="true">
