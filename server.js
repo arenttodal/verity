@@ -1110,32 +1110,145 @@ async function fetchBingNewsDateRange(searchQuery, fromYear) {
   return items;
 }
 
-// ── RANKING: dual-gate filter + score + select best articles ─────
-function rankAndSelect(articles, frame, maxCount = 15) {
+// ── STEP 1: Generate multiple search query variants via Claude ────
+// Instead of one rigid query, Claude generates 4-6 natural search
+// queries that a journalist or editor would use to find articles
+// on this specific topic. Cast wide, filter smart.
+async function generateMediaSearchQueries(frame) {
+  const msg = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 400,
+    system: 'You generate news search queries. Respond ONLY with valid JSON.',
+    messages: [{
+      role: 'user',
+      content: `Generate search queries to find news articles about: "${frame.plain}"
+
+The research question involves:
+- Subject: ${frame.intervention} (in ${frame.population})
+- Outcomes: ${(frame.outcomes || []).join(', ')}
+
+Generate 5 natural search queries a journalist would search to find articles specifically about the RESEARCH QUESTION above — not just the subject in any context.
+
+Rules:
+- Each query must be specific enough that results would be about the topic AND the relevant outcomes
+- Include the subject AND at least one outcome concept in each query
+- Vary the phrasing to cast a wide net
+- Keep each query to 3-6 words, natural language
+
+Return ONLY:
+{
+  "queries": [
+    "pets mental health benefits",
+    "pet ownership depression anxiety",
+    "animals wellbeing research",
+    "pet therapy psychological effects",
+    "companion animals mental wellness"
+  ]
+}`
+    }]
+  });
+  try {
+    const parsed = parseJSON(msg.content[0].text);
+    return parsed.queries || [frame.gdeltQuery || frame.intervention];
+  } catch {
+    return [frame.gdeltQuery || frame.intervention];
+  }
+}
+
+// ── STEP 2: Fetch articles for all query variants in parallel ─────
+async function fetchAllMediaVariants(queries, frame) {
   const fromYear = new Date().getFullYear() - 5;
+  const fromDate = `${fromYear}-01-01`;
+  const toDate   = new Date().toISOString().slice(0, 10);
 
-  const gateResults = { passed: 0, failedSubject: 0, failedOutcome: 0 };
+  // Run all queries across all sources in parallel
+  const allFetches = queries.flatMap(q => [
+    fetchGuardian(q, fromDate, toDate, frame).catch(() => []),
+    fetchGoogleNewsDateRange(q, fromYear).catch(() => []),
+    fetchBingNewsDateRange(q, fromYear).catch(() => []),
+  ]);
 
-  const filtered = articles
-    .filter(a => a.title && a.title.length > 15)
-    .filter(a => a.year >= fromYear)
-    .filter(a => {
-      const { passes, reason } = articlePassesDualGate(a.title, a.snippet, frame);
-      if (!passes) {
-        if (reason === 'no subject term in title') gateResults.failedSubject++;
-        else gateResults.failedOutcome++;
-      } else gateResults.passed++;
-      return passes;
-    });
+  const results = await Promise.allSettled(allFetches);
+  const all = results
+    .filter(r => r.status === 'fulfilled')
+    .flatMap(r => r.value);
 
-  console.log(`  Media gate: ${gateResults.passed} passed | ${gateResults.failedSubject} failed subject | ${gateResults.failedOutcome} failed outcome (of ${articles.length} total)`);
+  // Dedupe by normalised title
+  const seen = new Set();
+  return all.filter(a => {
+    if (!a.title || a.title.length < 15) return false;
+    const k = a.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 70);
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+}
 
-  return filtered
+// ── STEP 3: Claude judges relevance — the smart filter ────────────
+// Rather than keyword matching, Claude reads each title and decides
+// if it is genuinely about the research question.
+async function claudeFilterMedia(articles, frame) {
+  if (articles.length === 0) return [];
+
+  // Only send title + snippet to Claude (no URLs needed for filtering)
+  const candidates = articles
+    .filter(a => a.year >= new Date().getFullYear() - 5)
+    .slice(0, 60); // cap to avoid token overflow
+
+  if (candidates.length === 0) return [];
+
+  const block = candidates.map((a, i) =>
+    `[${i}] "${a.title}"${a.snippet ? ' — ' + a.snippet.slice(0, 80) : ''}`
+  ).join('
+');
+
+  const msg = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 800,
+    system: 'You are a media relevance filter. Respond ONLY with valid JSON.',
+    messages: [{
+      role: 'user',
+      content: `Research question: "${frame.plain}"
+Left claim: "${frame.leftClaim}" | Right claim: "${frame.rightClaim}"
+Outcomes studied: ${(frame.outcomes || []).join(', ')}
+
+Below are news article titles. For each one, decide: is this article ACTUALLY about the research question above?
+
+RELEVANT = the article discusses the subject AND the specific outcomes/effects being researched.
+IRRELEVANT = the article is about the subject in a completely different context (e.g. "pet insurance costs" when the question is about pet ownership and mental health).
+
+${block}
+
+Return ONLY:
+{
+  "relevant": [0, 3, 5, 7],
+  "irrelevant": [1, 2, 4, 6]
+}
+
+Be generous — if an article MIGHT be about the topic, include it. Only exclude clear mismatches.`
+    }]
+  });
+
+  try {
+    const parsed = parseJSON(msg.content[0].text);
+    const relevantIndices = new Set(parsed.relevant || []);
+    const kept = candidates.filter((_, i) => relevantIndices.has(i));
+    console.log(`  Claude filter: ${candidates.length} candidates → ${kept.length} relevant`);
+    return kept;
+  } catch (e) {
+    console.warn('  Claude media filter failed:', e.message);
+    // Fall back to returning all candidates if Claude fails
+    return candidates;
+  }
+}
+
+// ── STEP 4: Score and rank surviving articles ─────────────────────
+function rankMedia(articles, frame, maxCount = 15) {
+  return articles
     .map(a => {
-      const rel     = relevanceScore(a.title, a.snippet, frame);
       const recency = Math.max(0, 1 - (new Date().getFullYear() - a.year) / 6);
-      const score   = a.weight * rel * 0.60 + a.weight * 0.25 + recency * 0.15;
-      return { ...a, _score: score, _rel: rel };
+      // Prefer higher-credibility outlets and more recent articles
+      const score = a.weight * 0.65 + recency * 0.35;
+      return { ...a, _score: score };
     })
     .sort((a, b) => b._score - a._score)
     .slice(0, maxCount);
@@ -1143,66 +1256,27 @@ function rankAndSelect(articles, frame, maxCount = 15) {
 
 // ── MAIN: fetchMedia ──────────────────────────────────────────────
 async function fetchMedia(frame) {
-  const fromYear = new Date().getFullYear() - 5;
-  const fromDate = `${fromYear}-01-01`;
-  const toDate   = new Date().toISOString().slice(0, 10);
+  console.log('  Generating media search queries...');
+  const queries = await generateMediaSearchQueries(frame);
+  console.log(`  Media queries: ${queries.map(q => '"' + q + '"').join(', ')}`);
 
-  // Build search query from required terms + synonyms
-  const primary  = (frame.requiredTerms || []).slice(0, 2).join(' ');
-  const altTerms = (frame.synonyms      || []).slice(0, 2).join(' OR ');
-  const searchQ  = altTerms ? `(${primary}) OR (${altTerms})` : primary || frame.gdeltQuery || '';
+  console.log('  Fetching media across all query variants...');
+  const rawArticles = await fetchAllMediaVariants(queries, frame);
+  console.log(`  Media raw: ${rawArticles.length} unique articles`);
 
-  console.log(`  Media search: "${searchQ}" (${fromDate} → ${toDate})`);
+  if (rawArticles.length === 0) {
+    console.warn('  No media articles found from any source');
+    return [];
+  }
 
-  // Fetch all sources in parallel
-  const [guardianRes, nytRes, googleRes, bingRes] = await Promise.allSettled([
-    fetchGuardian(searchQ, fromDate, toDate, frame),
-    fetchNYT(searchQ, fromDate, toDate, frame),
-    fetchGoogleNewsDateRange(searchQ, fromYear),
-    fetchBingNewsDateRange(searchQ, fromYear),
-  ]);
+  // Claude decides what is actually relevant
+  const relevant = await claudeFilterMedia(rawArticles, frame);
 
-  const log = (r, n) => r.status === 'fulfilled' ? `${n}:${r.value.length}` : `${n}:ERR(${r.reason?.message?.slice(0,20)})`;
-  console.log(`  Media raw: ${log(guardianRes,'Guardian')} ${log(nytRes,'NYT')} ${log(googleRes,'Google')} ${log(bingRes,'Bing')}`);
+  // Rank remaining by quality + recency
+  const final = rankMedia(relevant, frame, 15);
+  console.log(`  Media final: ${final.length} articles`);
 
-  const all = [
-    ...(guardianRes.status === 'fulfilled' ? guardianRes.value : []),
-    ...(nytRes.status      === 'fulfilled' ? nytRes.value      : []),
-    ...(googleRes.status   === 'fulfilled' ? googleRes.value   : []),
-    ...(bingRes.status     === 'fulfilled' ? bingRes.value     : []),
-  ];
-
-  // Dedupe by normalised title
-  const seen = new Set();
-  const deduped = all.filter(a => {
-    const k = a.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 70);
-    if (seen.has(k)) return false;
-    seen.add(k); return true;
-  });
-
-  // Rank and select best
-  const ranked = rankAndSelect(deduped, frame, 15);
-  console.log(`  Media: ${deduped.length} deduped → ${ranked.length} ranked & selected`);
-
-  if (ranked.length >= 3) return ranked;
-
-  // Last resort: GDELT
-  console.log('  Trying GDELT fallback...');
-  try {
-    const sd = fromDate.replace(/-/g, '') + '000000';
-    const params = new URLSearchParams({ query: `${searchQ} sourcelang:english`, mode: 'artlist', maxrecords: '25', format: 'json', STARTDATETIME: sd, sort: 'relevance' });
-    const res = await fetch(`https://api.gdeltproject.org/api/v2/doc/doc?${params}`, { signal: AbortSignal.timeout(10000) });
-    if (res.ok) {
-      const data = await res.json();
-      const gdelt = (data.articles || []).filter(a => a.title?.length > 20).slice(0, 15)
-        .map(a => ({ title: stripHtml(a.title), outlet: a.domain || 'Unknown', url: a.url || '', year: a.seendate ? parseInt(a.seendate.slice(0,4)) : 2023, weight: 2, snippet: '' }));
-      const combined = rankAndSelect([...ranked, ...gdelt], frame, 15);
-      console.log(`  GDELT added ${gdelt.length}, final: ${combined.length}`);
-      return combined;
-    }
-  } catch (e) { console.warn(`  GDELT: ${e.message}`); }
-
-  return ranked;
+  return final;
 }
 
 

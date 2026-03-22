@@ -168,6 +168,32 @@ header { display: flex; align-items: center; justify-content: space-between; pad
 
 /* AI */
 .ai-tag { font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.07); padding: 3px 8px; border-radius: 3px; display: inline-block; margin-bottom: 13px; }
+
+/* ── SHARE BAR ── */
+.share-bar {
+  display: none; align-items: center; gap: 8px;
+  margin-top: 28px; padding-top: 20px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  flex-wrap: wrap;
+}
+.share-label {
+  font-family: 'DM Mono', monospace; font-size: 7.5px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: rgba(255,255,255,0.18); margin-right: 4px;
+}
+.share-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 0.09em;
+  text-transform: uppercase; color: rgba(255,255,255,0.38);
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+  padding: 5px 11px; border-radius: 5px; cursor: pointer;
+  transition: all 0.18s; white-space: nowrap;
+}
+.share-btn:hover { border-color: rgba(255,255,255,0.16); color: rgba(255,255,255,0.70); background: rgba(255,255,255,0.06); }
+.share-btn.copied { border-color: rgba(74,158,114,0.35); color: rgba(74,158,114,0.80); background: rgba(74,158,114,0.06); }
+.share-btn svg { opacity: 0.6; flex-shrink: 0; }
+
+/* ── SHARE CARD CANVAS (hidden, used for image export) ── */
+#shareCanvas { display: none; }
 .ai-text { font-size: 13px; line-height: 1.80; color: rgba(255,255,255,0.52); font-weight: 300; }
 .ai-text strong { color: rgba(255,255,255,0.82); font-weight: 500; }
 .ai-text p { margin-bottom: 1.3em; }
@@ -858,8 +884,21 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
         A significant body of literature — particularly RCTs on muscle metabolism and cohort studies in older populations — raises concerns about <strong>nutritional adequacy without supplementation</strong>: Vitamin B12, omega-3 fatty acids (DHA/EPA), zinc, and complete protein. These studies are smaller and have lower quality scores, hence smaller dots.<br><br>
         The <strong>media divergence signal</strong> is notable: news coverage leans ~31% further toward "beneficial" than the scientific evidence distribution supports — with Vox, CNN Health, and Men's Health significantly over-representing positive studies while Daily Mail and New York Post anchor the concern end.
       </div>
+      <!-- Share bar -->
+      <div class="share-bar" id="shareBar">
+        <span class="share-label">Share</span>
+        <button class="share-btn" id="shareLinkBtn" onclick="shareLink()">
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M6.5 9.5L9.5 6.5M9.5 6.5H7M9.5 6.5V9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M5 4H3a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="11" cy="5" r="2.3" stroke="currentColor" stroke-width="1.4"/></svg>
+          Copy link
+        </button>
+        <button class="share-btn" id="shareImageBtn" onclick="shareImage()">
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M1 11l3.5-3.5 3 3 2.5-2.5 4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="7" r="1" fill="currentColor"/></svg>
+          Save as image
+        </button>
+      </div>
     </div>
   </div>
+  <canvas id="shareCanvas"></canvas>
 
   <!-- ══ 3. EVIDENCE STRIP ══ -->
   <div class="section">
@@ -1751,7 +1790,9 @@ function showError(msg) {
 function resetToHero() {
   document.getElementById('errorState').style.display    = 'none';
   document.getElementById('resultsSections').style.display = 'none';
+  document.getElementById('shareBar').style.display = 'none';
   document.getElementById('hero').classList.remove('compact');
+  document.documentElement.classList.add('hero-state');
   document.getElementById('searchInput').focus();
 }
 
@@ -2041,8 +2082,10 @@ function populateFromData(data) {
   window._sciPct = sciPct;
   window._medPct = medPct;
 
-  // 5. Show results first so SVG has a rendered width, then build strip
+  // 5. Show results — unlock scroll, show share bar
+  document.documentElement.classList.remove('hero-state');
   document.getElementById('resultsSections').style.display = 'block';
+  document.getElementById('shareBar').style.display = 'flex';
   document.getElementById('resultsSections').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   // Use setTimeout(0) which queues after layout/paint, more reliable than rAF
