@@ -734,10 +734,16 @@ function computeConsensus(extractions) {
       const M  = Math.max(0.05, Math.min(1.0, outcome.magnitude  || 0.30));
       const P  = precisionWeight(ex.sampleSize, outcome.precision || 0.50);
       // Relevance: weighted combination of population and intervention match
-      const R  = Math.max(0.05, Math.min(1.0,
-        (ex.populationMatch   || 0.5) * 0.40 +
-        (ex.interventionMatch || 0.5) * 0.60
-      ));
+      // CRITICAL: papers with missing match scores are irrelevant, not moderate
+      const popMatch    = ex.populationMatch   ?? 0.05; // Default to irrelevant, not 0.5
+      const intMatch    = ex.interventionMatch ?? 0.05; // Default to irrelevant, not 0.5
+      const R = Math.max(0.05, Math.min(1.0, popMatch * 0.40 + intMatch * 0.60));
+
+      // Safety: skip papers that are clearly irrelevant to prevent contamination
+      if (R < 0.15 && (popMatch < 0.2 || intMatch < 0.2)) {
+        // Paper is likely irrelevant (both population and intervention mismatch)
+        return; // Skip this outcome entirely
+      }
 
       const w = D * B * P * R * U;
       const c = S * M * w;
@@ -1610,17 +1616,17 @@ app.post('/api/search', async (req, res) => {
     const filtered = hardFilter(rawPapers, frame);
 
     // If filter is too aggressive (< 4 papers), broaden:
-    // fall back to requiring ANY of the required/synonym terms in title only
+    // fall back to requiring the CORE intervention terms in title only (not all synonyms)
     let papers;
     if (filtered.length < 4) {
       console.warn(`  ⚠ Hard filter too strict (${filtered.length}), trying title-only fallback`);
-      const allTerms = [...(frame.requiredTerms || []), ...(frame.synonyms || [])]
-        .map(t => t.toLowerCase());
+      // Use only requiredTerms (the core entity words), not all synonyms
+      const coreTerms = (frame.requiredTerms || []).map(t => t.toLowerCase());
       const titleFiltered = rawPapers.filter(p =>
-        allTerms.some(t => p.title.toLowerCase().includes(t))
+        coreTerms.some(t => p.title.toLowerCase().includes(t))
       );
       console.log(`  Title-only fallback: ${titleFiltered.length} papers`);
-      papers = titleFiltered.length >= 4 ? titleFiltered : filtered;
+      papers = titleFiltered.length >= 3 ? titleFiltered : filtered; // Lower threshold
     } else {
       papers = filtered;
     }
