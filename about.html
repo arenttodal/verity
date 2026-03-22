@@ -126,6 +126,31 @@ footer{border-top:1px solid var(--border);padding:clamp(48px,8vw,80px) var(--pad
 .footer-meta{font-family:'DM Mono',monospace;font-size:9px;color:rgba(255,255,255,.18);line-height:2.2;letter-spacing:.05em;}
 .footer-disclaimer{font-size:11px;font-weight:300;color:rgba(255,255,255,.20);line-height:1.65;margin-top:10px;max-width:400px;}
 
+/* ── TOOL COMPARISON CARDS ── */
+.tool-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:48px;}
+@media(max-width:680px){.tool-cards{grid-template-columns:1fr;}}
+.tool-card{border-radius:12px;padding:28px 24px;border:1px solid var(--border);}
+.tool-card.tc-google{background:rgba(255,255,255,.022);}
+.tool-card.tc-gpt{background:rgba(78,152,200,.04);border-color:rgba(78,152,200,.12);}
+.tool-card.tc-verity{background:rgba(212,168,71,.04);border-color:rgba(212,168,71,.15);}
+.tool-card-icon{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:14px;padding:4px 9px;border-radius:4px;display:inline-block;}
+.tc-google .tool-card-icon{color:rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.10);}
+.tc-gpt .tool-card-icon{color:rgba(78,152,200,.70);border:1px solid rgba(78,152,200,.20);}
+.tc-verity .tool-card-icon{color:var(--gold);border:1px solid rgba(212,168,71,.30);}
+.tool-card-title{font-family:'Cormorant Garamond',serif;font-size:clamp(20px,3.5vw,26px);font-weight:300;line-height:1.1;color:var(--paper);margin-bottom:10px;}
+.tool-card-sub{font-size:12.5px;font-weight:300;color:rgba(255,255,255,.38);line-height:1.60;margin-bottom:20px;}
+.tool-flaw{display:flex;gap:10px;margin-bottom:10px;align-items:flex-start;}
+.tool-flaw:last-child{margin-bottom:0;}
+.flaw-dot{width:4px;height:4px;border-radius:50%;flex-shrink:0;margin-top:7px;}
+.tc-google .flaw-dot{background:rgba(255,255,255,.25);}
+.tc-gpt .flaw-dot{background:rgba(78,152,200,.55);}
+.tc-verity .flaw-dot{background:var(--gold);}
+.flaw-text{font-size:12.5px;line-height:1.65;font-weight:300;color:rgba(255,255,255,.48);}
+.flaw-text strong{color:rgba(255,255,255,.75);font-weight:500;}
+.tool-stat{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.10em;color:rgba(255,255,255,.18);margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06);}
+.tc-gpt .tool-stat{color:rgba(78,152,200,.40);}
+.tc-verity .tool-stat{color:rgba(212,168,71,.45);}
+
 @keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
 .reveal{opacity:0;transform:translateY(22px);transition:opacity .75s ease,transform .75s ease;}
 .reveal.visible{opacity:1;transform:translateY(0);}
@@ -327,7 +352,55 @@ footer{border-top:1px solid var(--border);padding:clamp(48px,8vw,80px) var(--pad
       <div class="abox-text">w = Design Prior × Bias Weight × Precision Weight × Relevance Weight × Independence Weight<br>c = Direction × Magnitude × w<br>score = 100 × Σ(c) / Σ|w × Magnitude| → bounded [-100, +100]</div>
     </div>
 
-    <div class="eyebrow" style="margin-bottom:16px;">How it compares</div>
+    <hr>
+
+    <div class="eyebrow" style="margin-bottom:14px;">Why your current options fall short</div>
+    <h3 style="font-family:'Cormorant Garamond',serif;font-size:clamp(22px,4vw,34px);font-weight:300;line-height:1.1;color:var(--paper);margin-bottom:16px;">Most people ask Google.<br>A growing number ask ChatGPT.<br>Neither was built for this.</h3>
+    <p class="prose" style="margin-bottom:36px;">Over 40 million people consult ChatGPT for health information every day. Billions more run health searches on Google. Both tools are genuinely useful — and both have structural limitations that make them unreliable when the question is about the actual state of scientific evidence. These aren't bugs. They're how the tools were designed.</p>
+
+    <div class="tool-cards">
+
+      <!-- GOOGLE -->
+      <div class="tool-card tc-google">
+        <div class="tool-card-icon">Search engine</div>
+        <div class="tool-card-title">Google</div>
+        <div class="tool-card-sub">Returns pages ranked by authority and clicks — not by scientific accuracy or study quality.</div>
+        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>Popularity ≠ accuracy.</strong> The top result is the most authoritative-seeming webpage, not the most reliable representation of the evidence.</div></div>
+        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>AI Overviews make it worse.</strong> A Guardian investigation found Google's AI summaries gave dangerous advice on cancer, psychosis, and eating disorders — and the same query produced different answers each time.</div></div>
+        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>No study hierarchy.</strong> Google cannot distinguish a meta-analysis of 40,000 participants from a blog post summarising a press release. Both can rank first.</div></div>
+        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>SEO shapes results.</strong> Sites optimised for search rank above sites optimised for accuracy. The incentives run in opposite directions.</div></div>
+        <div class="tool-stat">44% of medical queries now trigger AI Overviews — more than double the baseline rate · Source: Ahrefs, 2025</div>
+      </div>
+
+      <!-- CHATGPT -->
+      <div class="tool-card tc-gpt">
+        <div class="tool-card-icon">Language model</div>
+        <div class="tool-card-title">ChatGPT</div>
+        <div class="tool-card-sub">Synthesises its training data fluently. That training data reflects the internet — including all of its biases.</div>
+        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>Confidence ≠ correctness.</strong> ChatGPT's certainty reflects how often a claim appeared in training data — not study quality. A heavily covered finding sounds more certain than a quietly confirmed one.</div></div>
+        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>Knowledge is frozen.</strong> Training cutoffs mean the evidence base is 12–18 months behind. For fast-moving fields, that gap is significant.</div></div>
+        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>No study weighting.</strong> It cannot tell you whether its answer comes from a meta-analysis or an opinion piece. There is no mechanism to distinguish them.</div></div>
+        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>Hallucinations stated with authority.</strong> Fabricated citations, wrong doses, and factual errors are delivered in the same confident tone as correct answers.</div></div>
+        <div class="tool-stat">56% average accuracy on medical queries across 60 studies · Source: ScienceDirect meta-analysis, 2024</div>
+      </div>
+
+      <!-- VERITY -->
+      <div class="tool-card tc-verity">
+        <div class="tool-card-icon">Evidence synthesis</div>
+        <div class="tool-card-title">Verity</div>
+        <div class="tool-card-sub">Built specifically to answer one question: what does the accumulated peer-reviewed evidence actually show?</div>
+        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>Score from formula, not opinion.</strong> The consensus percentage is computed deterministically — Design Prior × Bias × Precision × Relevance × Independence. Claude writes prose after the score is locked.</div></div>
+        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>Study hierarchy encoded explicitly.</strong> A meta-analysis of 40 RCTs is weighted orders of magnitude higher than an observational study of 200. That difference is visible in the result.</div></div>
+        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>Current literature, every search.</strong> Papers from the last five years, pulled live from PubMed, Semantic Scholar, and OpenAlex. No training cutoff.</div></div>
+        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>Every number traces to a real paper.</strong> Click any mark on the evidence strip. See the abstract, citation count, design, and quality score. Nothing is invented.</div></div>
+        <div class="tool-stat">250M+ peer-reviewed papers · 3 independent databases · live results · no hallucination possible in the score</div>
+      </div>
+
+    </div>
+
+    <p class="prose" style="margin-bottom:48px;">Google and ChatGPT are both good at what they were built for — information retrieval and language synthesis. Neither was built to synthesise scientific evidence by study quality, show you where media coverage has drifted from the research, or tell you the difference between a strong directional signal and proven causation. That is what Verity does. Which brings us to how it sits alongside the tools that are trying.</p>
+
+    <div class="eyebrow" style="margin-bottom:16px;">How it compares to other evidence tools</div>
     <div class="comp-wrap">
       <table class="comp-table">
         <tr><th>Tool</th><th>Weighted scoring</th><th>Media divergence</th><th>Two kinds of confidence</th><th>Consumer UX</th></tr>
