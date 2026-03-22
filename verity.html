@@ -270,6 +270,28 @@ header { display: flex; align-items: center; justify-content: space-between; pad
 .ai-text p { margin-bottom: 1.3em; }
 .ai-text p:last-child { margin-bottom: 0; }
 
+/* ── SYNTHESIS COLLAPSE ── */
+.synthesis-wrap { position: relative; }
+.synthesis-wrap.collapsed .ai-text {
+  max-height: 110px; overflow: hidden;
+}
+.synthesis-fade {
+  display: none;
+  position: absolute; bottom: 0; left: 0; right: 0; height: 64px;
+  background: linear-gradient(to bottom, transparent, var(--surface));
+  pointer-events: none;
+}
+.synthesis-wrap.collapsed .synthesis-fade { display: block; }
+.synthesis-toggle {
+  display: none; margin-top: 10px;
+  font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: rgba(255,255,255,0.28);
+  background: none; border: 1px solid rgba(255,255,255,0.08);
+  padding: 5px 12px; border-radius: 5px; cursor: pointer;
+  transition: all 0.15s;
+}
+.synthesis-toggle:hover { color: rgba(255,255,255,0.55); border-color: rgba(255,255,255,0.18); }
+
 /* ── VERDICT ── */
 .verdict-block {
   margin-bottom: 24px;
@@ -952,11 +974,13 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
         <div class="verdict-text" id="verdictText"></div>
       </div>
       <div class="ai-tag" id="studyCountTag">Quality-weighted · 15 studies</div>
-      <div class="ai-text">
-        The preponderance of peer-reviewed research published between 2020–2025 indicates that <strong>well-planned vegan diets are associated with measurable metabolic benefits</strong>, including reduced risks of cardiovascular disease, type 2 diabetes, and all-cause mortality. High-quality meta-analyses (largest dots in the map) consistently show lower BMI, LDL cholesterol, and blood pressure in plant-based cohorts — these carry the most weight in the consensus score.<br><br>
-        A significant body of literature — particularly RCTs on muscle metabolism and cohort studies in older populations — raises concerns about <strong>nutritional adequacy without supplementation</strong>: Vitamin B12, omega-3 fatty acids (DHA/EPA), zinc, and complete protein. These studies are smaller and have lower quality scores, hence smaller dots.<br><br>
-        The <strong>media divergence signal</strong> is notable: news coverage leans ~31% further toward "beneficial" than the scientific evidence distribution supports — with Vox, CNN Health, and Men's Health significantly over-representing positive studies while Daily Mail and New York Post anchor the concern end.
+      <div class="synthesis-wrap collapsed" id="synthesisWrap">
+        <div class="ai-text" id="aiTextBody">
+          The preponderance of peer-reviewed research published between 2020–2025 indicates that <strong>well-planned vegan diets are associated with measurable metabolic benefits</strong>, including reduced risks of cardiovascular disease, type 2 diabetes, and all-cause mortality.
+        </div>
+        <div class="synthesis-fade"></div>
       </div>
+      <button class="synthesis-toggle" id="synthesisToggle" onclick="toggleSynthesis()">Show full synthesis ↓</button>
       <!-- Share bar -->
       <div class="share-bar" id="shareBar">
         <span class="share-label">Share</span>
@@ -1386,7 +1410,10 @@ function buildStrip() {
     const nx = tx(ax);
     if (isNaN(nx)) return;
 
-    const bladeLen = above ? 20 : 20;
+    // Blade must always extend beyond the tallest possible tick in its rail:
+    // Science ticks max at TICK_H[5]=34px above axis → blade needs 34+12=46px
+    // Media ticks max at safeH(5)*0.75=~25px below axis → blade needs 25+12=37px
+    const bladeLen = above ? 46 : 37;
 
     // Thin full-height blade spanning entire rail
     const fullBlade = mkEl('line');
@@ -1975,7 +2002,7 @@ function mediaStanceToX(stance, weight) {
 
 // ── Main data population ──────────────────────────────────────────
 function populateFromData(data) {
-  const { queryMeta, papers, analysis, media, mediaAnalysis, meta } = data;
+  const { queryMeta, papers, analysis, media, mediaAnalysis, meta, divergenceAnalysis } = data;
 
   // 1. Query title + certainty badge
   document.getElementById('queryTitle').textContent = queryMeta.plain || '';
@@ -2151,6 +2178,12 @@ function populateFromData(data) {
   // Store for share card
   window._divergenceAnalysis = da || null;
 
+  // Synthesis — collapsed by default, show toggle
+  const synthesisWrap   = document.getElementById('synthesisWrap');
+  const synthesisToggle = document.getElementById('synthesisToggle');
+  if (synthesisWrap)   { synthesisWrap.classList.add('collapsed'); }
+  if (synthesisToggle) { synthesisToggle.style.display = 'block'; synthesisToggle.textContent = 'Show full synthesis ↓'; }
+
   // Ensure synthesis text renders with proper paragraph breaks
   let summaryHtml = analysis.summary || '—';
   // If it's plain paragraphs separated by double newlines or <br><br>, wrap in <p> tags
@@ -2162,7 +2195,9 @@ function populateFromData(data) {
       .map(s => `<p>${s}</p>`)
       .join('');
   }
-  el('.ai-text').innerHTML = summaryHtml;
+  const aiBody = document.getElementById('aiTextBody');
+  if (aiBody) aiBody.innerHTML = summaryHtml;
+  else el('.ai-text').innerHTML = summaryHtml;
 
   // 4. Build dynamic strip data
   // Build stance lookup — handle all ref formats: "doi:X", "pmid:X", "paper-N", bare DOI
@@ -2255,6 +2290,19 @@ document.getElementById('searchInput').addEventListener('keydown', e => {
 });
 
 // ── URL SHARING ────────────────────────────────────────────────────
+function toggleSynthesis() {
+  const wrap   = document.getElementById('synthesisWrap');
+  const btn    = document.getElementById('synthesisToggle');
+  const isOpen = !wrap.classList.contains('collapsed');
+  if (isOpen) {
+    wrap.classList.add('collapsed');
+    btn.textContent = 'Show full synthesis ↓';
+  } else {
+    wrap.classList.remove('collapsed');
+    btn.textContent = 'Collapse ↑';
+  }
+}
+
 function toggleDivAnalysis() {
   const card = document.getElementById('divanalysisCard');
   card.classList.toggle('open');
@@ -2298,9 +2346,8 @@ function openShareCard() {
     Math.min(4, Math.max(1, Math.round(d.weight) || 2))
   ].join(',')).join('|');
 
-  // Grab divergence analysis if available
-  const da = data?.divergenceAnalysis || window._divergenceAnalysis;
-  const daHint = da ? encodeURIComponent(da.headline || '') : '';
+  // Grab divergence analysis — stored on window by populateFromData
+  const da = window._divergenceAnalysis || null;
 
   const params = new URLSearchParams({
     q:  query,
