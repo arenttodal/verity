@@ -132,6 +132,7 @@ header { display: flex; align-items: center; justify-content: space-between; pad
 
 /* divergence */
 .div-bar { display: flex; align-items: center; gap: 10px; margin-top: 20px; padding: 11px 16px; background: rgba(200,125,58,0.05); border: 1px solid rgba(200,125,58,0.12); border-radius: 8px; }
+.strip-note { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; padding: 9px 13px; background: rgba(255,255,255,0.025); border-radius: 7px; border-left: 2px solid rgba(255,255,255,0.10); font-size: 11px; line-height: 1.60; color: rgba(255,255,255,0.35); font-weight: 300; font-family: 'DM Mono', monospace; letter-spacing: 0.02em; }
 .div-bolt { font-size: 13px; flex-shrink: 0; }
 .div-text { font-size: 11.5px; color: rgba(255,255,255,0.42); font-weight: 300; line-height: 1.5; }
 .div-text strong { color: rgba(200,125,58,0.85); font-weight: 500; }
@@ -1046,6 +1047,7 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
          onmouseenter="document.getElementById('stripLegend').style.opacity='1'"
          onmouseleave="document.getElementById('stripLegend').style.opacity='0'">
       <svg class="strip-svg" id="stripSvg"></svg>
+      <div class="strip-note" id="stripNote" style="display:none;"></div>
       <div class="div-bar" id="divBar" style="margin-top:16px;">
         <span class="div-bolt">⚡</span>
         <span class="div-text"><strong>+8% divergence.</strong> The media average sits noticeably further toward "Beneficial" than the quality-weighted science average — coverage overstates the current consensus.</span>
@@ -1461,6 +1463,31 @@ function buildStrip() {
 
   if (showSci) drawAvg(scienceDots, true,  'rgba(255,255,255,0.60)',   'SCI AVG');
   if (showMed)  drawAvg(mediaDots,  false, 'rgba(195,138,62,0.72)',   'MEDIA AVG');
+
+  // ── Strip calibration note: explain AVG vs consensus score when they look different ──
+  // The SCI AVG is a weighted position average of ALL studies including mixed ones.
+  // The consensus score only counts studies with clear directional stances.
+  // These legitimately differ. Explain it when the gap is noticeable.
+  const noteEl = document.getElementById('stripNote');
+  if (noteEl && showSci && scienceDots.length > 0 && window._sciPct != null) {
+    const tw  = scienceDots.reduce((s,d) => s + (d.weight||2), 0) || 1;
+    const ax  = scienceDots.reduce((s,d) => s + d.x*(d.weight||2), 0) / tw;
+    const avgPct = Math.round(ax * 100);
+    const conPct = window._sciPct;
+    const gap    = Math.abs(conPct - avgPct);
+
+    // Count mixed/neutral studies
+    const mixed = scienceDots.filter(d => !d.note || d.note === '' ||
+      (d.x > 0.35 && d.x < 0.65)).length;
+
+    if (gap >= 15 && mixed > 0) {
+      noteEl.style.display = 'flex';
+      noteEl.innerHTML = `<span style="opacity:0.45;font-size:10px;flex-shrink:0;">ℹ</span>
+        <span>The consensus score (${conPct}%) counts only studies with a clear directional finding. The strip average includes ${mixed} mixed or neutral studies that pull toward centre — both are correct, they measure different things.</span>`;
+    } else {
+      noteEl.style.display = 'none';
+    }
+  }
 
   document.getElementById('divBar').style.display = showMed ? 'flex' : 'none';
 }
@@ -2422,5 +2449,38 @@ function rotateHeroLine() {
 setInterval(rotateHeroLine, 7000);
 
 </script>
+<script>
+  window.BUGBOT_WEBHOOK  = 'https://bugbot-production-f901.up.railway.app/bug-report';
+  window.BUGBOT_BASE_URL = 'https://bugbot-production-f901.up.railway.app';
+  window.BUGBOT_PROJECT  = 'verity';
+  window.BUGBOT_SECRET   = '2977355fe1f00d72c6b1f61115b0d531';
+  window.BUGBOT_POSITION = 'bottom-right';
+  window.BUGBOT_THEME    = 'dark';
+
+  window.BUGBOT_CATEGORIES = [
+    { id:'wrong-results',   icon:'🔍', title:'Wrong results',      desc:"Sources shown don't match this topic",       prompt:'What were you searching for and what seems wrong about the results?',                      type:'bug',      submitText:'Report wrong results →'  },
+    { id:'inaccurate-data', icon:'📊', title:'Inaccurate data',    desc:'A score, stat or finding looks wrong',       prompt:'Which score or finding seems inaccurate? What would you expect instead?',                   type:'bug',      submitText:'Report inaccuracy →'     },
+    { id:'missing-source',  icon:'📰', title:'Missing source',     desc:'An important study or article is missing',   prompt:'Which study or source is missing? Include the title, DOI or URL if you have it.',            type:'feedback', submitText:'Suggest missing source →' },
+    { id:'ai-error',        icon:'🤖', title:'AI summary error',   desc:'The verdict or analysis text is wrong',      prompt:'Which part of the AI summary seems incorrect? What should it say instead?',                  type:'bug',      submitText:'Report AI error →'       },
+    { id:'technical-bug',   icon:'🐛', title:'Technical bug',      desc:'Something is broken or not loading',         prompt:'What were you doing when it broke? What did you see?',                                      type:'bug',      submitText:'Send bug report →'       },
+  ];
+
+  window.BUGBOT_CONTEXT = function() {
+    const query   = document.getElementById('searchInput')?.value?.trim() || '';
+    const verdict = document.getElementById('verdictText')?.textContent?.trim() || '';
+    const sciPct  = window._sciPct  != null ? window._sciPct  + '%' : null;
+    const medPct  = window._medPct  != null ? window._medPct  + '%' : null;
+    const certEl  = document.getElementById('certaintyBadge');
+    const cert    = certEl?.textContent?.trim() || null;
+    const ctx = {};
+    if (query)   ctx['query']     = query;
+    if (verdict) ctx['verdict']   = verdict.slice(0, 80);
+    if (sciPct)  ctx['sci%']      = sciPct;
+    if (medPct)  ctx['med%']      = medPct;
+    if (cert)    ctx['certainty'] = cert;
+    return ctx;
+  };
+</script>
+<script src="/bugbot-widget.js"></script>
 </body>
 </html>
