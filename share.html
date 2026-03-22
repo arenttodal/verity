@@ -255,7 +255,7 @@ body::before {
           </div>
         </div>
       </div>
-      <svg id="shareStrip" height="140" viewBox="0 0 382 140" preserveAspectRatio="none"></svg>
+      <svg id="shareStrip" height="168" viewBox="0 0 382 168" preserveAspectRatio="none"></svg>
     </div>
 
     <!-- FOOTER -->
@@ -324,125 +324,183 @@ if (div >= 8) {
   divEl.style.display = 'block';
 }
 
-// ── Evidence strip (SVG) ─────────────────────────────────────────
-const svg = document.getElementById('shareStrip');
-const W = 382, H = 140;
-// Science axis sits at 58, ticks grow UP (max 30px → y=28, avg blade top → y=14 — clearly above)
-// Media axis sits at 102, ticks grow UP (max 12px → y=90, avg blade top → y=78)
-// Concern/Neutral/Benefit labels at y=132 (bottom of SVG)
-const sciAxisY = 58;
-const medAxisY = 102;
-const lblY     = 132;
+// ── Evidence strip (SVG) — mirrors in-app buildStrip exactly ─────
+(function() {
+  const svg = document.getElementById('shareStrip');
+  const W = 382;
 
-const ns = 'http://www.w3.org/2000/svg';
+  // Same proportions as in-app
+  const PL = 10, PR = 10;
+  const U  = W - PL - PR;
+  const SCI_RAIL_H = 76;
+  const AXIS_H     = 36;
+  const MED_RAIL_H = 56;
+  const H = SCI_RAIL_H + AXIS_H + MED_RAIL_H; // 168
 
-function mkEl(tag, attrs) {
-  const el = document.createElementNS(ns, tag);
-  for (const [k,v] of Object.entries(attrs)) el.setAttribute(k, v);
-  return el;
-}
-function svgText(text, x, y, fill, size, spacing, anchor) {
-  const t = mkEl('text', { x, y, fill,
-    'font-family':'DM Mono, monospace', 'font-size':size,
-    'letter-spacing':spacing, 'text-anchor': anchor||'start' });
-  t.textContent = text;
-  return t;
-}
+  const axisY = SCI_RAIL_H + AXIS_H / 2; // 94
+  const tx = v => PL + v * U;
+  const ns = 'http://www.w3.org/2000/svg';
+  const mk = (tag, attrs) => {
+    const el = document.createElementNS(ns, tag);
+    for (const [k,v] of Object.entries(attrs)) el.setAttribute(k,v);
+    return el;
+  };
 
-// Gradient defs
-const defs = mkEl('defs', {});
-function makeGrad(id, c1, c2, c3) {
-  const g = mkEl('linearGradient', { id, x1:'0%', x2:'100%' });
-  [['0%',c1],['50%',c2],['100%',c3]].forEach(([off,col]) => {
-    const s = mkEl('stop', { offset:off, 'stop-color':col }); g.appendChild(s);
+  svg.innerHTML = '';
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  // ── DEFS ──────────────────────────────────────────────────────
+  const defs = mk('defs', {});
+
+  // Axis gradient
+  const axGrad = mk('linearGradient', {
+    id:'axG', gradientUnits:'userSpaceOnUse',
+    x1:PL, x2:PL+U, y1:axisY, y2:axisY
   });
-  return g;
-}
-defs.appendChild(makeGrad('axG1','rgba(184,64,64,0.55)','rgba(255,255,255,0.12)','rgba(59,110,170,0.55)'));
-defs.appendChild(makeGrad('axG2','rgba(184,64,64,0.28)','rgba(255,255,255,0.06)','rgba(59,110,170,0.28)'));
-svg.appendChild(defs);
+  axGrad.innerHTML = `
+    <stop offset="0%"   stop-color="rgba(200,90,90,0.55)"/>
+    <stop offset="35%"  stop-color="rgba(220,220,235,0.30)"/>
+    <stop offset="50%"  stop-color="rgba(240,242,255,0.45)"/>
+    <stop offset="65%"  stop-color="rgba(220,220,235,0.30)"/>
+    <stop offset="100%" stop-color="rgba(80,130,220,0.55)"/>`;
+  defs.appendChild(axGrad);
 
-// ── Science axis ─────────────────────────────────────────────────
-svg.appendChild(mkEl('line',{x1:0,x2:W,y1:sciAxisY,y2:sciAxisY,stroke:'url(#axG1)','stroke-width':'1.2'}));
+  // Zone tint
+  const zoneLG = mk('linearGradient', { id:'zt', x1:'0%', x2:'100%' });
+  zoneLG.innerHTML = `
+    <stop offset="0%"   stop-color="rgba(160,50,50,0.018)"/>
+    <stop offset="38%"  stop-color="transparent"/>
+    <stop offset="62%"  stop-color="transparent"/>
+    <stop offset="100%" stop-color="rgba(40,90,170,0.018)"/>`;
+  defs.appendChild(zoneLG);
+  svg.appendChild(defs);
 
-// ── Media axis ───────────────────────────────────────────────────
-svg.appendChild(mkEl('line',{x1:0,x2:W,y1:medAxisY,y2:medAxisY,stroke:'url(#axG2)','stroke-width':'1'}));
+  // Zone background
+  svg.appendChild(mk('rect', { x:PL, y:0, width:U, height:H, fill:'url(#zt)' }));
 
-// ── Axis labels at bottom ────────────────────────────────────────
-svg.appendChild(svgText('← Concern',    0,       lblY, 'rgba(184,64,64,0.55)',   '7.5','0.09em','start'));
-svg.appendChild(svgText('Neutral',      W*0.5,   lblY, 'rgba(255,255,255,0.18)', '7.5','0.09em','middle'));
-svg.appendChild(svgText('Benefit →',    W,       lblY, 'rgba(59,110,170,0.55)',  '7.5','0.09em','end'));
+  // ── AXIS LINE ─────────────────────────────────────────────────
+  svg.appendChild(mk('line', {
+    x1:PL, x2:PL+U, y1:axisY, y2:axisY,
+    stroke:'url(#axG)', 'stroke-width':'1.5'
+  }));
 
-// ── Science ticks ────────────────────────────────────────────────
-// Heights: weight 1→7, 2→11, 3→16, 4→22, 5→30
-const TICK_H = [0, 7, 11, 16, 22, 30];
-const SCI_COL = {
-  meta:    'rgba(235,238,252,0.85)',
-  rct:     'rgba(210,224,242,0.63)',
-  cohort:  'rgba(185,218,210,0.47)',
-  obs:     'rgba(175,178,200,0.31)',
-  unknown: 'rgba(170,174,200,0.24)',
-};
-
-const sciDots = dotsRaw
-  ? dotsRaw.split('|').map(s => { const [x,w,t] = s.split(','); return {x:parseFloat(x),w:parseInt(w)||2,t:t||'unknown'}; }).filter(d=>!isNaN(d.x))
-  : [];
-
-const placed = [];
-sciDots.forEach(d => {
-  let sx = Math.round(d.x * W);
-  placed.forEach(pp => { if(Math.abs(sx-pp)<3) sx+=3; });
-  placed.push(sx);
-  const tH = TICK_H[Math.min(5,Math.max(1,d.w))];
-  const col = SCI_COL[d.t]||SCI_COL.unknown;
-  if (d.t==='meta') {
-    svg.appendChild(mkEl('rect',{x:sx-2,y:sciAxisY-tH,width:4,height:tH,rx:1.5,fill:col}));
-  } else {
-    svg.appendChild(mkEl('line',{x1:sx,x2:sx,y1:sciAxisY-tH,y2:sciAxisY,stroke:col,'stroke-width':'1.3'}));
+  // ── AXIS LABELS ───────────────────────────────────────────────
+  const lblY = H - 3;
+  function svgLbl(text, x, anchor, fill) {
+    const t = mk('text', { x, y:lblY, fill,
+      'font-family':'DM Mono, monospace', 'font-size':'7',
+      'letter-spacing':'0.10em', 'text-anchor':anchor });
+    t.textContent = text;
+    svg.appendChild(t);
   }
-});
+  svgLbl('Concern', tx(0),   'start',  'rgba(180,80,80,0.42)');
+  svgLbl('Neutral', tx(0.5), 'middle', 'rgba(255,255,255,0.16)');
+  svgLbl('Benefit', tx(1),   'end',    'rgba(70,130,190,0.42)');
 
-// Science AVG blade — drawn AFTER ticks so it sits on top
-// Blade top at sciAxisY-44 (14px clear above tallest possible tick at -30)
-if (sciDots.length > 0) {
-  const tw = sciDots.reduce((s,d)=>s+d.w,0)||1;
-  const ax = sciDots.reduce((s,d)=>s+d.x*d.w,0)/tw;
-  const avX = Math.round(ax*W);
-  const bladeTop = sciAxisY - 44;
-  // Blade line
-  svg.appendChild(mkEl('line',{x1:avX,x2:avX,y1:bladeTop,y2:sciAxisY,stroke:'rgba(255,255,255,0.70)','stroke-width':'1.5'}));
-  // Dot at top
-  svg.appendChild(mkEl('circle',{cx:avX,cy:bladeTop,r:3.5,fill:'rgba(255,255,255,0.75)'}));
-  // Label beside dot
-  svg.appendChild(svgText('AVG',avX+6,bladeTop+4,'rgba(255,255,255,0.38)','7','0.08em'));
-}
+  // ── RAIL LABELS ───────────────────────────────────────────────
+  function railLbl(text, y, fill) {
+    const t = mk('text', { x:PL, y, fill,
+      'font-family':'DM Mono, monospace', 'font-size':'7', 'letter-spacing':'0.14em' });
+    t.textContent = text;
+    svg.appendChild(t);
+  }
+  railLbl('SCIENCE', axisY - 6,             'rgba(255,255,255,0.20)');
+  railLbl('MEDIA',   SCI_RAIL_H+AXIS_H - 5, 'rgba(200,125,58,0.30)');
 
-// ── Media ticks ──────────────────────────────────────────────────
-const mediaDots = mDotsRaw
-  ? mDotsRaw.split('|').map(s=>{ const [x,w]=s.split(','); return {x:parseFloat(x),w:parseInt(w)||2}; }).filter(d=>!isNaN(d.x))
-  : [];
+  // ── TICK CONSTANTS — same as in-app ──────────────────────────
+  const TICK_H = [0, 7, 11, 17, 25, 34];
+  const TICK_W = { meta:2.5, rct:1, cohort:1, obs:0.75, unknown:1 };
+  const SCI_COL = {
+    meta:   'rgba(235,238,252,0.78)',
+    rct:    'rgba(215,224,242,0.52)',
+    cohort: 'rgba(190,218,215,0.40)',
+    obs:    'rgba(175,178,200,0.24)',
+    unknown:'rgba(175,178,200,0.22)',
+  };
+  const MED_COL = 'rgba(195,138,62,0.50)';
+  const safeH = w => TICK_H[Math.min(5, Math.max(1, Math.round(w)||2))];
 
-const mPlaced = [];
-mediaDots.forEach(d => {
-  let sx = Math.round(d.x*W);
-  mPlaced.forEach(pp => { if(Math.abs(sx-pp)<3) sx+=3; });
-  mPlaced.push(sx);
-  const tH = Math.min(12, 4 + d.w * 2);
-  svg.appendChild(mkEl('line',{x1:sx,x2:sx,y1:medAxisY-tH,y2:medAxisY,
-    stroke:'rgba(195,138,62,0.58)','stroke-width':'1.3'}));
-});
+  // ── DRAW TICKS ────────────────────────────────────────────────
+  function drawTicks(dots, above, getColor, getW, getH) {
+    const sorted = [...dots].sort((a,b)=>a.x-b.x);
+    const placed = [];
+    sorted.forEach(d => {
+      let sx = tx(d.x);
+      placed.forEach(p=>{ if(Math.abs(sx-p)<3) sx+=3.5; });
+      placed.push(sx);
 
-// Media AVG blade — top at medAxisY-22 (10px clear above tallest media tick at -12)
-if (mediaDots.length > 0) {
-  const tw = mediaDots.reduce((s,d)=>s+d.w,0)||1;
-  const ax = mediaDots.reduce((s,d)=>s+d.x*d.w,0)/tw;
-  const avX = Math.round(ax*W);
-  const bladeTop = medAxisY - 22;
-  svg.appendChild(mkEl('line',{x1:avX,x2:avX,y1:bladeTop,y2:medAxisY,
-    stroke:'rgba(195,138,62,0.72)','stroke-width':'1.5'}));
-  svg.appendChild(mkEl('circle',{cx:avX,cy:bladeTop,r:3,fill:'rgba(195,138,62,0.78)'}));
-  svg.appendChild(svgText('AVG',avX+5,bladeTop+4,'rgba(195,138,62,0.50)','7','0.08em'));
-}
+      const tH   = getH(d);
+      const col  = getColor(d);
+      const w    = getW(d);
+      const y1   = above ? axisY-tH : axisY;
+      const y2   = above ? axisY    : axisY+tH;
+      const isMeta = d.type === 'meta';
+
+      if (isMeta) {
+        svg.appendChild(mk('rect', {
+          x:sx-w/2, y:Math.min(y1,y2), width:w, height:tH, rx:w/2, fill:col
+        }));
+      } else {
+        svg.appendChild(mk('line', {
+          x1:sx, x2:sx, y1, y2, stroke:col,
+          'stroke-width':w, 'stroke-linecap':'round'
+        }));
+      }
+    });
+  }
+
+  // ── DRAW AVG BLADE ────────────────────────────────────────────
+  function drawAvg(dots, above, color, label) {
+    if (!dots || !dots.length) return;
+    const tw = dots.reduce((s,d)=>s+(d.w||d.weight||2),0)||1;
+    const ax = dots.reduce((s,d)=>s+d.x*(d.w||d.weight||2),0)/tw;
+    if (isNaN(ax)) return;
+    const nx = tx(ax);
+    const bladeLen = 20;
+    const y1 = above ? axisY-bladeLen : axisY;
+    const y2 = above ? axisY          : axisY+bladeLen;
+    const capY = above ? axisY-bladeLen : axisY+bladeLen;
+
+    // blade
+    svg.appendChild(mk('line',{x1:nx,x2:nx,y1,y2,stroke:color,'stroke-width':'1'}));
+    // axis notch
+    svg.appendChild(mk('line',{x1:nx-3,x2:nx+3,y1:axisY,y2:axisY,stroke:color,'stroke-width':'2','stroke-linecap':'square'}));
+    // cap dot
+    svg.appendChild(mk('circle',{cx:nx,cy:capY,r:3.5,fill:color}));
+    // label
+    const safeY = above
+      ? Math.max(8, axisY-bladeLen-4)
+      : Math.min(H-14, axisY+bladeLen+9);
+    const lbl = mk('text',{x:nx+5,y:safeY,fill:color,
+      'font-family':'DM Mono, monospace','font-size':'6.5','letter-spacing':'0.14em'});
+    lbl.textContent = label;
+    svg.appendChild(lbl);
+  }
+
+  // ── Parse and render science dots ─────────────────────────────
+  const sciDots = dotsRaw
+    ? dotsRaw.split('|').map(s=>{const[x,w,t]=s.split(',');return{x:parseFloat(x),w:parseInt(w)||2,type:t||'unknown'};}).filter(d=>!isNaN(d.x))
+    : [];
+
+  drawTicks(sciDots, true,
+    d => SCI_COL[d.type] || 'rgba(220,225,240,0.55)',
+    d => TICK_W[d.type]  || 1.5,
+    d => safeH(d.w)
+  );
+  drawAvg(sciDots, true, 'rgba(255,255,255,0.60)', 'SCI AVG');
+
+  // ── Parse and render media dots ───────────────────────────────
+  const mDots = mDotsRaw
+    ? mDotsRaw.split('|').map(s=>{const[x,w]=s.split(',');return{x:parseFloat(x),w:parseInt(w)||2,type:'media'};}).filter(d=>!isNaN(d.x))
+    : [];
+
+  drawTicks(mDots, false,
+    () => MED_COL,
+    () => 1,
+    d  => Math.max(4, Math.round(safeH(d.w)*0.75))
+  );
+  drawAvg(mDots, false, 'rgba(195,138,62,0.72)', 'MEDIA AVG');
+})();
 
 // ── Back link ────────────────────────────────────────────────────
 const bl = document.getElementById('backLink');
