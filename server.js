@@ -560,8 +560,9 @@ function hardFilter(papers, frame) {
 //  Claude's ONLY role: extract what each paper actually found.
 //  No scoring. No percentages. Pure extraction.
 // ─────────────────────────────────────────────────────────────────
-async function extractOutcomes(papers, frame) {
-  const BATCH_SIZE = 12; // larger batches = fewer round-trips
+async function extractOutcomes(papers, frame, deepMode = false) {
+  // Larger batches for deep mode to handle 60 papers efficiently
+  const BATCH_SIZE = deepMode ? 15 : 12;
   const batches = [];
 
   for (let i = 0; i < papers.length; i += BATCH_SIZE) {
@@ -1182,7 +1183,7 @@ async function fetchBingNewsDateRange(searchQuery, fromYear) {
 // Instead of one rigid query, Claude generates 4-6 natural search
 // queries that a journalist or editor would use to find articles
 // on this specific topic. Cast wide, filter smart.
-async function generateMediaSearchQueries(frame) {
+async function generateMediaSearchQueries(frame, deepMode = false) {
   const msg = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 400,
@@ -1195,7 +1196,7 @@ The research question involves:
 - Subject: ${frame.intervention} (in ${frame.population})
 - Outcomes: ${(frame.outcomes || []).join(', ')}
 
-Generate 5 natural search queries a journalist would search to find articles specifically about the RESEARCH QUESTION above — not just the subject in any context.
+Generate ${deepMode ? '8-10' : '5'} natural search queries a journalist would search to find articles specifically about the RESEARCH QUESTION above — not just the subject in any context.
 
 Rules:
 - Each query must be specific enough that results would be about the topic AND the relevant outcomes
@@ -1348,9 +1349,9 @@ function rankMedia(articles, frame, maxCount = 15) {
 }
 
 // ── MAIN: fetchMedia ──────────────────────────────────────────────
-async function fetchMedia(frame) {
+async function fetchMedia(frame, deepMode = false) {
   console.log('  Generating media search queries...');
-  const queries = await generateMediaSearchQueries(frame);
+  const queries = await generateMediaSearchQueries(frame, deepMode);
   console.log(`  Media queries: ${queries.map(q => '"' + q + '"').join(', ')}`);
 
   console.log('  Fetching media across all query variants...');
@@ -1365,8 +1366,9 @@ async function fetchMedia(frame) {
   // Claude decides what is actually relevant
   const relevant = await claudeFilterMedia(rawArticles, frame);
 
-  // Rank remaining by quality + recency
-  const final = rankMedia(relevant, frame, 15);
+  // Rank remaining by quality + recency - more for deep mode
+  const maxArticles = deepMode ? 25 : 15;
+  const final = rankMedia(relevant, frame, maxArticles);
   console.log(`  Media final: ${final.length} articles`);
 
   return final;
@@ -1558,13 +1560,13 @@ Return ONLY:
 //  MAIN ENDPOINT
 // ─────────────────────────────────────────────────────────────────
 app.post('/api/search', async (req, res) => {
-  const { query, forceRefresh } = req.body;
+  const { query, forceRefresh, deepMode } = req.body;
   if (!query?.trim()) return res.status(400).json({ error: 'query is required' });
 
   const t0 = Date.now();
   console.log(`\n${'═'.repeat(60)}`);
-  console.log(`[${new Date().toISOString()}] "${query}"`);
-
+  console.log(`[${new Date().toISOString()}] "${query}"${deepMode ? ' (DEEP MODE)' : ''}`);
+  
   // ── CACHE CHECK ──────────────────────────────────────────────
   if (!forceRefresh) {
     const cached = await getCached(query);
@@ -1585,11 +1587,16 @@ app.post('/api/search', async (req, res) => {
     console.log(`  PM query:  "${frame.searchTerms?.pubmed}"`);
 
     // ── 2. Fetch all sources + GDELT in parallel ──────────────────
+    const s2Limit  = deepMode ? 50 : 25;
+    const pmLimit  = deepMode ? 40 : 20;
+    const pmYears  = deepMode ? 15 : 10;
+    const oaLimit  = deepMode ? 30 : 15;
+    
     const [s2Res, pmRes, oaRes, gdeltRes] = await Promise.allSettled([
-      fetchSemanticScholar(frame.searchTerms?.semantic || query, 25),
-      fetchPubMed(frame.searchTerms?.pubmed || query, 20, 10),
-      fetchOpenAlex(frame.searchTerms?.openAlex || query, 15),
-      fetchMedia(frame),
+      fetchSemanticScholar(frame.searchTerms?.semantic || query, s2Limit),
+      fetchPubMed(frame.searchTerms?.pubmed || query, pmLimit, pmYears),
+      fetchOpenAlex(frame.searchTerms?.openAlex || query, oaLimit),
+      fetchMedia(frame, deepMode),
     ]);
 
     const log = (r, name) => r.status === 'fulfilled'
@@ -1637,14 +1644,15 @@ app.post('/api/search', async (req, res) => {
       });
     }
 
-    // Cap at 30 best papers (prioritise metas/RCTs and most cited)
+    // Cap papers based on mode (prioritise metas/RCTs and most cited)
+    const maxPapers = deepMode ? 60 : 30;
     papers = papers
       .sort((a, b) => {
         const designScore = d => ({ umbrella:5, meta:4, rct:3, cohort:2, unknown:1 }[d]||1);
         return (designScore(b.design) * 2 + (b.citations || 0) * 0.001) -
                (designScore(a.design) * 2 + (a.citations || 0) * 0.001);
       })
-      .slice(0, 30);
+      .slice(0, maxPapers);
 
     console.log(`  Final: ${papers.length} papers for analysis`);
     console.log(`  Design mix: ${papers.reduce((a,p) => { a[p.design]=(a[p.design]||0)+1; return a; }, {})}`);
@@ -1652,7 +1660,7 @@ app.post('/api/search', async (req, res) => {
     // ── 4. Extract outcomes + analyse media in parallel ───────────
     console.log('  Extracting outcomes...');
     const [extractions, mediaAnalysis] = await Promise.all([
-      extractOutcomes(papers, frame),
+      extractOutcomes(papers, frame, deepMode),
       analyzeMedia(frame.plain, rawMedia, frame),
     ]);
     console.log(`  Extracted: ${extractions.length} outcome sets`);
@@ -1760,6 +1768,7 @@ app.post('/api/search', async (req, res) => {
         contradiction: scoring.contradiction,
         score:         scoring.score,
         durationMs:    Date.now() - t0,
+        deepMode:      deepMode || false,
         algorithm:     'v7-cached-deterministic',
         requiredTerms: frame.requiredTerms,
         synonyms:      frame.synonyms,

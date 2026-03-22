@@ -758,6 +758,36 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
 }
 .pill:hover { color: rgba(255,255,255,0.5); border-color: rgba(255,255,255,0.13); background: rgba(255,255,255,0.025); }
 
+/* ── DEEP MODE TOGGLE ── */
+.deep-mode-wrap {
+  display: flex; justify-content: center; margin-top: 14px;
+}
+.deep-mode-toggle {
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+  font-family: 'DM Mono', monospace; font-size: 9px; color: rgba(255,255,255,0.35);
+  text-transform: uppercase; letter-spacing: 0.08em; user-select: none;
+}
+.deep-mode-toggle em {
+  text-transform: none; opacity: 0.6; font-style: normal; font-weight: 300;
+}
+.deep-toggle-slider {
+  position: relative; width: 32px; height: 18px; border-radius: 9px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  transition: all 0.2s; flex-shrink: 0;
+}
+.deep-toggle-slider::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px;
+  border-radius: 50%; background: rgba(255,255,255,0.25); transition: all 0.2s;
+}
+.deep-mode-toggle input[type="checkbox"] { display: none; }
+.deep-mode-toggle input:checked + .deep-toggle-slider {
+  background: rgba(78,152,200,0.15); border-color: rgba(78,152,200,0.25);
+}
+.deep-mode-toggle input:checked + .deep-toggle-slider::after {
+  transform: translateX(14px); background: rgba(78,152,200,0.85);
+}
+.deep-mode-toggle:hover .deep-toggle-text { color: rgba(255,255,255,0.55); }
+
 /* ── LOADING SEQUENCE ── */
 .loading-state {
   display: none; flex-direction: column; align-items: center;
@@ -915,6 +945,13 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
           placeholder="e.g. Is a vegan diet beneficial to health?" autocomplete="off">
         <button class="s-btn" id="searchBtn" onclick="runSearch()">Search →</button>
       </div>
+      <div class="deep-mode-wrap">
+        <label class="deep-mode-toggle">
+          <input type="checkbox" id="deepModeCheck">
+          <span class="deep-toggle-slider"></span>
+          <span class="deep-toggle-text">Deep research mode <em>(2-3 min, 50-100 studies)</em></span>
+        </label>
+      </div>
       <div class="pills">
         <div class="pill" onclick="fillSearch('Is a vegan diet beneficial to health?')">Veganism & health</div>
         <div class="pill" onclick="fillSearch('Does coffee reduce mortality?')">Coffee & longevity</div>
@@ -990,6 +1027,7 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
           <div class="cb-tooltip" id="certTooltip">Loading...</div>
         </div>
         <div id="cacheBadge" class="cache-badge" style="display:none;">Cached</div>
+        <div id="deepBadge" class="cache-badge" style="display:none;">Deep Mode</div>
       </div>
       <div class="section-sub">All scientific findings carry an expiry date.</div>
     </div>
@@ -2075,18 +2113,27 @@ async function runSearch() {
   document.getElementById('hero').classList.add('compact');
   document.getElementById('resultsSections').style.display = 'none';
   document.getElementById('errorState').style.display = 'none';
+  
+  // Check if deep mode is enabled
+  const deepMode = document.getElementById('deepModeCheck')?.checked || false;
+  
   setLoading(true, 0); // Step 0: reading question
 
   // Simulate step progression while the real request is in flight
-  // Steps 1-5 are timed to roughly match the actual pipeline duration (~20-30s)
-  const stepTimings = [800, 3500, 7000, 12000, 18000];
+  // Deep mode takes longer (~45-60s), adjust timings
+  const stepTimings = deepMode 
+    ? [1000, 6000, 12000, 20000, 35000]  // Longer for deep mode
+    : [800, 3500, 7000, 12000, 18000];   // Standard timing
   const stepTimers  = stepTimings.map((t, i) => setTimeout(() => setStep(i + 1), t));
 
   try {
     const res = await fetch('/api/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query })
+      body: JSON.stringify({ 
+        query,
+        deepMode: document.getElementById('deepModeCheck')?.checked || false
+      })
     });
 
     // Clear pending step timers — result arrived
@@ -2214,6 +2261,15 @@ function populateFromData(data) {
     }
   } else {
     cacheBadge.style.display = 'none';
+  }
+
+  // Deep mode badge
+  const deepBadge = document.getElementById('deepBadge');
+  if (meta?.deepMode) {
+    deepBadge.style.display = 'inline-block';
+    deepBadge.textContent = '🔬 Deep Mode';
+  } else {
+    deepBadge.style.display = 'none';
   }
 
   // 2. Consensus bar — side labels
