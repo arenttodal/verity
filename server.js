@@ -523,8 +523,8 @@ async function fetchOpenAlex(query, limit = 15) {
 //  → rejected immediately regardless of citation count.
 // ─────────────────────────────────────────────────────────────────
 function hardFilter(papers, frame) {
-  const required = (frame.requiredTerms || []).map(t => t.toLowerCase().trim());
-  const synonyms = (frame.synonyms      || []).map(t => t.toLowerCase().trim());
+  const required = (frame.requiredTerms || []).map(t => t.toLowerCase().trim()).filter(t => t.length >= 3);
+  const synonyms = (frame.synonyms      || []).map(t => t.toLowerCase().trim()).filter(t => t.length >= 3);
   const allTerms = [...new Set([...required, ...synonyms])].filter(t => t.length > 1);
 
   if (allTerms.length === 0) {
@@ -535,17 +535,69 @@ function hardFilter(papers, frame) {
 
   const filtered = papers.filter(p => {
     const text = (p.title + ' ' + p.abstract).toLowerCase();
-    // HARD RULE: at least one required/synonym term must appear
-    return allTerms.some(term => text.includes(term));
+    // HARD RULE: at least one required/synonym term must appear as a complete word
+    return allTerms.some(term => {
+      // Handle hyphenated terms and special characters
+      if (term.includes('-') || term.includes(' ')) {
+        // For multi-word or hyphenated terms, try both exact phrase and word boundary
+        const exactMatch = text.includes(term.toLowerCase());
+        const wordMatch = term.split(/[-\s]+/).every(subterm => {
+          if (subterm.length < 3) return true; // Skip very short subterms
+          const wordRegex = new RegExp(`\\b${subterm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+          return wordRegex.test(text);
+        });
+        return exactMatch || wordMatch;
+      } else {
+        // Single word: use strict word boundaries
+        const wordRegex = new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        return wordRegex.test(text);
+      }
+    });
   });
 
   console.log(`  Filter: ${papers.length} → ${filtered.length} papers`);
   console.log(`  Required terms: [${allTerms.slice(0,5).join(', ')}]`);
+  
+  // Debug: Log a few accepted papers to verify word boundary matching
+  if (filtered.length > 0) {
+    console.log('  Accepted (sample):');
+    filtered.slice(0, 2).forEach(p => {
+      const matchedTerms = allTerms.filter(term => {
+        const text = (p.title + ' ' + p.abstract).toLowerCase();
+        if (term.includes('-') || term.includes(' ')) {
+          const exactMatch = text.includes(term.toLowerCase());
+          const wordMatch = term.split(/[-\s]+/).every(subterm => {
+            if (subterm.length < 3) return true;
+            const wordRegex = new RegExp(`\\b${subterm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+            return wordRegex.test(text);
+          });
+          return exactMatch || wordMatch;
+        } else {
+          const wordRegex = new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+          return wordRegex.test(text);
+        }
+      });
+      console.log(`    ✓ "${p.title.slice(0, 70)}" [matches: ${matchedTerms.join(', ')}]`);
+    });
+  }
 
   // Log rejections for the first few to verify correctness
   const rejected = papers.filter(p => {
     const text = (p.title + ' ' + p.abstract).toLowerCase();
-    return !allTerms.some(term => text.includes(term));
+    return !allTerms.some(term => {
+      if (term.includes('-') || term.includes(' ')) {
+        const exactMatch = text.includes(term.toLowerCase());
+        const wordMatch = term.split(/[-\s]+/).every(subterm => {
+          if (subterm.length < 3) return true;
+          const wordRegex = new RegExp(`\\b${subterm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+          return wordRegex.test(text);
+        });
+        return exactMatch || wordMatch;
+      } else {
+        const wordRegex = new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        return wordRegex.test(text);
+      }
+    });
   }).slice(0, 3);
   if (rejected.length) {
     console.log('  Rejected (sample):');
@@ -553,6 +605,91 @@ function hardFilter(papers, frame) {
   }
 
   return filtered;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  STEP 3.5 — CLAUDE HAIKU: semantic relevance validation
+//  Final safety net to catch any papers that passed regex filters
+//  but are semantically irrelevant (e.g., "PurR protein" ≠ "cat purr")
+// ─────────────────────────────────────────────────────────────────
+async function validateRelevanceWithClaude(papers, frame) {
+  if (papers.length === 0) return [];
+  
+  // For efficiency, batch process and use shorter abstracts
+  const BATCH_SIZE = 20; // Haiku can handle more papers per call
+  const batches = [];
+  
+  for (let i = 0; i < papers.length; i += BATCH_SIZE) {
+    batches.push(papers.slice(i, i + BATCH_SIZE));
+  }
+  
+  const allValidated = [];
+  
+  for (const [batchIdx, batch] of batches.entries()) {
+    try {
+      const paperBlock = batch.map((p, i) => 
+        `[${i+1}] "${p.title}"\nAbstract: ${(p.abstract || '').slice(0, 250)}...`
+      ).join('\n\n');
+      
+      const msg = await anthropic.messages.create({
+        model: 'claude-3-haiku-20240307', // Fast + cheap for relevance checking
+        max_tokens: 500,
+        messages: [{
+          role: 'user',
+          content: `Research question: "${frame.plain}"
+
+Review these ${batch.length} papers and determine if each is RELEVANT to the research question above.
+
+${paperBlock}
+
+For each paper, respond with just the number and R (relevant) or I (irrelevant):
+- R = paper is about the research topic and could provide evidence
+- I = paper is clearly about something else (wrong topic, different meaning, etc.)
+
+Examples for "cat purring effects":
+- "Effects of purr-frequency vibrations on healing" → R
+- "PurR protein in bacterial metabolism" → I  
+- "Feline vocalization therapy benefits" → R
+- "Purine biosynthesis pathways" → I
+
+Format: [1] R, [2] I, [3] R, etc.`
+        }]
+      });
+      
+      const response = msg.content[0].text;
+      const relevanceDecisions = [];
+      
+      // Parse Claude's relevance decisions
+      for (let i = 1; i <= batch.length; i++) {
+        const match = response.match(new RegExp(`\\[${i}\\]\\s*([RI])`, 'i'));
+        if (match) {
+          relevanceDecisions.push(match[1].toUpperCase() === 'R');
+        } else {
+          // If parsing fails, err on the side of inclusion
+          relevanceDecisions.push(true);
+          console.warn(`  ⚠ Failed to parse relevance for paper ${i} in batch ${batchIdx + 1}`);
+        }
+      }
+      
+      // Keep only papers marked as relevant
+      const validatedBatch = batch.filter((_, i) => relevanceDecisions[i]);
+      allValidated.push(...validatedBatch);
+      
+      // Log rejections for debugging
+      const rejected = batch.filter((_, i) => !relevanceDecisions[i]);
+      if (rejected.length > 0) {
+        console.log(`  Batch ${batchIdx + 1} rejected (${rejected.length}/${batch.length}):`);
+        rejected.forEach(p => console.log(`    ✗ "${p.title.slice(0, 60)}..."`));
+      }
+      
+    } catch (err) {
+      console.warn(`  ⚠ Relevance validation failed for batch ${batchIdx + 1}, including all papers:`, err.message);
+      // If validation fails, include the whole batch rather than lose papers
+      allValidated.push(...batch);
+    }
+  }
+  
+  return allValidated;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1628,10 +1765,24 @@ app.post('/api/search', async (req, res) => {
     if (filtered.length < 4) {
       console.warn(`  ⚠ Hard filter too strict (${filtered.length}), trying title-only fallback`);
       // Use only requiredTerms (the core entity words), not all synonyms
-      const coreTerms = (frame.requiredTerms || []).map(t => t.toLowerCase());
-      const titleFiltered = rawPapers.filter(p =>
-        coreTerms.some(t => p.title.toLowerCase().includes(t))
-      );
+      const coreTerms = (frame.requiredTerms || []).map(t => t.toLowerCase()).filter(t => t.length >= 3);
+      const titleFiltered = rawPapers.filter(p => {
+        const titleText = p.title.toLowerCase();
+        return coreTerms.some(term => {
+          if (term.includes('-') || term.includes(' ')) {
+            const exactMatch = titleText.includes(term.toLowerCase());
+            const wordMatch = term.split(/[-\s]+/).every(subterm => {
+              if (subterm.length < 3) return true;
+              const wordRegex = new RegExp(`\\b${subterm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+              return wordRegex.test(titleText);
+            });
+            return exactMatch || wordMatch;
+          } else {
+            const wordRegex = new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+            return wordRegex.test(titleText);
+          }
+        });
+      });
       console.log(`  Title-only fallback: ${titleFiltered.length} papers`);
       papers = titleFiltered.length >= 3 ? titleFiltered : filtered; // Lower threshold
     } else {
@@ -1657,16 +1808,22 @@ app.post('/api/search', async (req, res) => {
     console.log(`  Final: ${papers.length} papers for analysis`);
     console.log(`  Design mix: ${papers.reduce((a,p) => { a[p.design]=(a[p.design]||0)+1; return a; }, {})}`);
 
+    // ── 3.5. CLAUDE HAIKU RELEVANCE VALIDATION ───────────────────────
+    // Final semantic filter to catch any irrelevant papers that slipped through
+    console.log('  Running semantic relevance check...');
+    const validatedPapers = await validateRelevanceWithClaude(papers, frame);
+    console.log(`  Semantic filter: ${papers.length} → ${validatedPapers.length} papers`);
+
     // ── 4. Extract outcomes + analyse media in parallel ───────────
     console.log('  Extracting outcomes...');
     const [extractions, mediaAnalysis] = await Promise.all([
-      extractOutcomes(papers, frame, deepMode),
+      extractOutcomes(validatedPapers, frame, deepMode),
       analyzeMedia(frame.plain, rawMedia, frame),
     ]);
     console.log(`  Extracted: ${extractions.length} outcome sets`);
 
     // Attach extraction data back to papers for the frontend
-    papers.forEach(p => {
+    validatedPapers.forEach(p => {
       const ex = extractions.find(e => {
         if (!e.ref) return false;
         if (p.doi  && e.ref.toLowerCase().includes(p.doi.toLowerCase()))  return true;
@@ -1687,9 +1844,9 @@ app.post('/api/search', async (req, res) => {
     // ── 6. Synthesis + verdict + divergence analysis in parallel ──
     console.log('  Synthesizing...');
     const [summary, verdict, divergenceAnalysis] = await Promise.all([
-      synthesize(frame, papers, scoring),
+      synthesize(frame, validatedPapers, scoring),
       generateVerdict(frame, scoring),
-      analyzeDivergence(frame, papers, scoring, rawMedia, mediaAnalysis),
+      analyzeDivergence(frame, validatedPapers, scoring, rawMedia, mediaAnalysis),
     ]);
     console.log(`  Verdict: "${verdict.slice(0, 80)}..."`);
     if (divergenceAnalysis) console.log(`  Divergence: ${divergenceAnalysis.category} (${divergenceAnalysis.confidence})`);
@@ -1715,7 +1872,7 @@ app.post('/api/search', async (req, res) => {
     });
 
     const mediaDivergence = Math.abs((mediaAnalysis.rightPct ?? 50) - scoring.rightPct);
-    const sourceCounts = papers.reduce((a,p) => { a[p.source||'?']=(a[p.source||'?']||0)+1; return a; }, {});
+    const sourceCounts = validatedPapers.reduce((a,p) => { a[p.source||'?']=(a[p.source||'?']||0)+1; return a; }, {});
 
     console.log(`  ✓ Done in ${Date.now()-t0}ms | sources: ${JSON.stringify(sourceCounts)}`);
     console.log(`${'═'.repeat(60)}`);
@@ -1732,7 +1889,7 @@ app.post('/api/search', async (req, res) => {
         isDebatable: frame.isDebatable,
         domain:      frame.domain,
       },
-      papers,
+      papers: validatedPapers,
       analysis: {
         verdict,
         summary,
@@ -1762,14 +1919,16 @@ app.post('/api/search', async (req, res) => {
       },
       divergenceAnalysis,
       meta: {
-        paperCount:    papers.length,
+        paperCount:        validatedPapers.length,
+        paperCountRaw:     rawPapers.length,
+        paperCountFiltered: papers.length,
         sourceCounts,
         certainty:     scoring.certainty,
         contradiction: scoring.contradiction,
         score:         scoring.score,
         durationMs:    Date.now() - t0,
         deepMode:      deepMode || false,
-        algorithm:     'v7-cached-deterministic',
+        algorithm:     'v8-word-boundary-fix',
         requiredTerms: frame.requiredTerms,
         synonyms:      frame.synonyms,
         fromCache:     false,
