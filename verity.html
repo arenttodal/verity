@@ -2146,6 +2146,8 @@ function populateFromData(data) {
   } else {
     daSection.style.display = 'none';
   }
+  // Store for share card
+  window._divergenceAnalysis = da || null;
 
   // Ensure synthesis text renders with proper paragraph breaks
   let summaryHtml = analysis.summary || '—';
@@ -2294,6 +2296,10 @@ function openShareCard() {
     Math.min(4, Math.max(1, Math.round(d.weight) || 2))
   ].join(',')).join('|');
 
+  // Grab divergence analysis if available
+  const da = data?.divergenceAnalysis || window._divergenceAnalysis;
+  const daHint = da ? encodeURIComponent(da.headline || '') : '';
+
   const params = new URLSearchParams({
     q:  query,
     s:  sciPct,
@@ -2306,6 +2312,7 @@ function openShareCard() {
     md: mDotsStr,
     n:  sDots.length,
     nm: mDots.length,
+    da: da ? da.headline : '',
   });
 
   window.open('/share.html?' + params.toString(), '_blank');
