@@ -25,10 +25,30 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;background:rgba(
 .nav-link{font-family:'DM Mono',monospace;font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-decoration:none;padding:6px 11px;border-radius:5px;transition:color .15s,background .15s;white-space:nowrap;}
 .nav-link:hover,.nav-link.active{color:var(--gold);background:rgba(212,168,71,.07);}
 
-.cover{min-height:100vh;display:flex;flex-direction:column;justify-content:flex-end;padding:var(--pad);padding-top:120px;position:relative;overflow:hidden;}
+.cover{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:var(--pad);padding-top:80px;padding-bottom:60px;position:relative;overflow:hidden;}
 .cover-bg{position:absolute;inset:0;z-index:0;background:radial-gradient(ellipse 70% 55% at 65% 5%,rgba(78,152,200,.07) 0%,transparent 60%),radial-gradient(ellipse 45% 45% at 5% 90%,rgba(204,92,92,.05) 0%,transparent 55%),radial-gradient(ellipse 30% 40% at 90% 60%,rgba(212,168,71,.03) 0%,transparent 50%),linear-gradient(170deg,#0b0d1e 0%,#07080f 45%,#060709 100%);}
 .cover-grid{position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.022;background-image:linear-gradient(rgba(255,255,255,.6) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.6) 1px,transparent 1px);background-size:60px 60px;}
-.cover-content{position:relative;z-index:1;max-width:1100px;margin:0 auto;width:100%;}
+.cover-content{position:relative;z-index:1;max-width:1200px;margin:0 auto;width:100%;}
+.cover-two-col{display:grid;grid-template-columns:1fr auto;gap:60px;align-items:center;}
+@media(max-width:860px){.cover-two-col{grid-template-columns:1fr;}.cover-right{display:none;}}
+.cover-left{display:flex;flex-direction:column;}
+.cover-right{display:flex;align-items:center;justify-content:flex-end;flex-shrink:0;}
+.cover-video-frame{
+  width: clamp(200px, 22vw, 300px);
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.08),
+    0 40px 80px rgba(0,0,0,0.65),
+    0 8px 24px rgba(0,0,0,0.45);
+  background: #000;
+  position: relative;
+}
+.cover-video-frame::before{
+  content:'';position:absolute;top:11px;left:50%;transform:translateX(-50%);
+  width:60px;height:4px;background:rgba(255,255,255,0.10);border-radius:2px;z-index:2;
+}
+.cover-video-frame video{display:block;width:100%;height:auto;border-radius:28px;}
 .cover-eyebrow{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);margin-bottom:32px;opacity:0;animation:fadeUp .8s ease .2s forwards;}
 .cover-title{font-family:'Cormorant Garamond',serif;font-size:clamp(44px,8.5vw,96px);font-weight:300;line-height:.96;letter-spacing:-.02em;color:var(--paper);margin-bottom:32px;opacity:0;animation:fadeUp .9s ease .35s forwards;}
 .cover-title em{font-style:italic;color:rgba(255,255,255,.28);}
@@ -155,39 +175,7 @@ footer{border-top:1px solid var(--border);padding:clamp(48px,8vw,80px) var(--pad
 .reveal{opacity:0;transform:translateY(22px);transition:opacity .75s ease,transform .75s ease;}
 .reveal.visible{opacity:1;transform:translateY(0);}
 
-/* ── PRODUCT VIDEO ── */
-.video-section {
-  padding: clamp(64px,10vw,100px) var(--pad);
-  border-top: 1px solid var(--border);
-  display: flex; justify-content: center;
-}
-.video-frame {
-  position: relative;
-  width: min(320px, 80vw);
-  border-radius: 28px;
-  overflow: hidden;
-  box-shadow:
-    0 0 0 1px rgba(255,255,255,0.07),
-    0 32px 80px rgba(0,0,0,0.6),
-    0 8px 24px rgba(0,0,0,0.4);
-  background: #000;
-}
-.video-frame::before {
-  /* Subtle notch bar at top like a phone */
-  content: '';
-  position: absolute;
-  top: 12px; left: 50%; transform: translateX(-50%);
-  width: 72px; height: 5px;
-  background: rgba(255,255,255,0.12);
-  border-radius: 3px;
-  z-index: 2;
-}
-.video-frame video {
-  display: block;
-  width: 100%;
-  height: auto;
-  border-radius: 28px;
-}
+
 </style>
 </head>
 <body>
@@ -206,15 +194,25 @@ footer{border-top:1px solid var(--border);padding:clamp(48px,8vw,80px) var(--pad
 <section class="cover">
   <div class="cover-bg"></div>
   <div class="cover-grid"></div>
-  <div class="cover-content">
-    <div class="cover-eyebrow">Evidence Intelligence Platform</div>
-    <h1 class="cover-title">Evidence<br><em>Intelligence</em><br>Platform</h1>
-    <div class="cover-rule"></div>
-    <p class="cover-sub">We have more published research than at any point in history. Most of it never reaches the people it could help, and most of what does gets distorted before it lands. Verity is built around fixing both of those things.</p>
-    <div class="cover-meta">
-      <div class="cover-meta-item"><em>Sources</em>PubMed · Semantic Scholar · OpenAlex</div>
-      <div class="cover-meta-item"><em>Coverage</em>250M+ peer-reviewed papers</div>
-      <div class="cover-meta-item"><em>Media</em>5 years across major outlets</div>
+  <div class="cover-content cover-two-col">
+    <div class="cover-left">
+      <div class="cover-eyebrow">Evidence Intelligence Platform</div>
+      <h1 class="cover-title">Evidence<br><em>Intelligence</em><br>Platform</h1>
+      <div class="cover-rule"></div>
+      <p class="cover-sub">We have more published research than at any point in history. Most of it never reaches the people it could help, and most of what does gets distorted before it lands. Verity is built around fixing both of those things.</p>
+      <div class="cover-meta">
+        <div class="cover-meta-item"><em>Sources</em>PubMed · Semantic Scholar · OpenAlex</div>
+        <div class="cover-meta-item"><em>Coverage</em>250M+ peer-reviewed papers</div>
+        <div class="cover-meta-item"><em>Media</em>5 years across major outlets</div>
+      </div>
+    </div>
+    <div class="cover-right">
+      <div class="cover-video-frame">
+        <video
+          src="https://raw.githubusercontent.com/arenttodal/verity/main/verityvideo.webm"
+          autoplay muted loop playsinline preload="auto"
+        ></video>
+      </div>
     </div>
   </div>
 </section>
@@ -224,20 +222,6 @@ footer{border-top:1px solid var(--border);padding:clamp(48px,8vw,80px) var(--pad
   <div class="exec-inner">
     <div class="exec-eyebrow">What Verity does</div>
     <p class="exec-text">Every study is trying to prove it's right. We're here to show you how they're all a little wrong. Verity answers a question nobody else is properly answering: <em>what does the accumulated peer-reviewed evidence actually show, and how far has media coverage drifted from it?</em> The consensus score comes from a deterministic algorithm, not an AI opinion. The media divergence layer is something no existing tool provides.</p>
-  </div>
-</section>
-
-<!-- PRODUCT VIDEO -->
-<section class="video-section reveal">
-  <div class="video-frame">
-    <video
-      src="https://raw.githubusercontent.com/arenttodal/verity/main/verityvideo.webm"
-      autoplay
-      muted
-      loop
-      playsinline
-      preload="auto"
-    ></video>
   </div>
 </section>
 
