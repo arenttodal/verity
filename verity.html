@@ -364,6 +364,44 @@ header { display: flex; align-items: center; justify-content: space-between; pad
 }
 .cache-badge.from-cache { color: rgba(100,180,255,0.35); border-color: rgba(100,180,255,0.12); }
 
+/* ── MOBILE: compact consensus badges ── */
+@media (max-width: 600px) {
+  /* Stack title on its own line, badges row underneath */
+  .section-head > div:first-child {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 6px !important;
+    overflow: hidden;
+  }
+  .section-head .section-title {
+    font-size: 8px !important;
+    white-space: nowrap;
+    flex-shrink: 1;
+    min-width: 0;
+  }
+  .certainty-badge {
+    font-size: 7px !important;
+    padding: 4px 8px 4px 6px !important;
+    border-radius: 5px !important;
+    gap: 5px !important;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .certainty-badge .cb-dot {
+    width: 6px !important; height: 6px !important;
+  }
+  .cache-badge {
+    font-size: 6.5px !important;
+    padding: 3px 6px !important;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .section-head .section-sub {
+    display: none;
+  }
+}
+
 /* ══════════════════════════════════════════════
    SIDEBAR PANEL
 ══════════════════════════════════════════════ */
