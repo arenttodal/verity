@@ -400,7 +400,15 @@ header { display: flex; align-items: center; justify-content: space-between; pad
   .section-head .section-sub {
     display: none;
   }
+  /* Hide original cache badge from section-head on mobile */
+  #cacheBadge { display: none !important; }
+  /* Show mobile cache badge below title */
+  .cache-badge-mobile {
+    display: inline-block !important;
+    margin-top: 8px;
+  }
 }
+.cache-badge-mobile { display: none; }
 
 /* ══════════════════════════════════════════════
    SIDEBAR PANEL
@@ -920,6 +928,7 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
   <div class="query-block">
     <div class="q-label">Results for</div>
     <div class="q-title" id="queryTitle">Is a vegan diet beneficial to human health?</div>
+    <div id="cacheBadgeMobile" class="cache-badge cache-badge-mobile" style="display:none;">⚡ Cached result</div>
   </div>
 
   <!-- ══ 1. CONSENSUS ══ -->
@@ -1993,6 +2002,8 @@ function resetToHero() {
   document.getElementById('resultsSections').style.display = 'none';
   document.getElementById('shareBar').style.display = 'none';
   document.getElementById('divanalysisSection').style.display = 'none';
+  const cm = document.getElementById('cacheBadgeMobile');
+  if (cm) { cm.style.display = 'none'; cm.classList.remove('from-cache'); }
   document.getElementById('hero').classList.remove('compact');
   document.documentElement.classList.add('hero-state');
   document.getElementById('searchInput').focus();
@@ -2135,6 +2146,12 @@ function populateFromData(data) {
     cacheBadge.style.display = 'inline-block';
     cacheBadge.classList.add('from-cache');
     cacheBadge.textContent   = '⚡ Cached result';
+    // Mirror to mobile slot
+    const cacheBadgeMobile = document.getElementById('cacheBadgeMobile');
+    if (cacheBadgeMobile) {
+      cacheBadgeMobile.style.display = 'inline-block';
+      cacheBadgeMobile.classList.add('from-cache');
+    }
   } else {
     cacheBadge.style.display = 'none';
   }
