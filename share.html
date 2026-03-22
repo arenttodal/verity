@@ -25,6 +25,8 @@ html, body {
   display: flex; align-items: center; justify-content: center;
   padding: 28px 16px 40px; font-family: 'Instrument Sans', sans-serif;
 }
+/* Hide bugbot widget if somehow present */
+#bb-trigger, #bb-shadow-host { display: none !important; }
 
 body::before {
   content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.15;
