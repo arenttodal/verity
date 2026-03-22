@@ -154,6 +154,40 @@ footer{border-top:1px solid var(--border);padding:clamp(48px,8vw,80px) var(--pad
 @keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
 .reveal{opacity:0;transform:translateY(22px);transition:opacity .75s ease,transform .75s ease;}
 .reveal.visible{opacity:1;transform:translateY(0);}
+
+/* ── PRODUCT VIDEO ── */
+.video-section {
+  padding: clamp(64px,10vw,100px) var(--pad);
+  border-top: 1px solid var(--border);
+  display: flex; justify-content: center;
+}
+.video-frame {
+  position: relative;
+  width: min(320px, 80vw);
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.07),
+    0 32px 80px rgba(0,0,0,0.6),
+    0 8px 24px rgba(0,0,0,0.4);
+  background: #000;
+}
+.video-frame::before {
+  /* Subtle notch bar at top like a phone */
+  content: '';
+  position: absolute;
+  top: 12px; left: 50%; transform: translateX(-50%);
+  width: 72px; height: 5px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 3px;
+  z-index: 2;
+}
+.video-frame video {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 28px;
+}
 </style>
 </head>
 <body>
@@ -190,6 +224,20 @@ footer{border-top:1px solid var(--border);padding:clamp(48px,8vw,80px) var(--pad
   <div class="exec-inner">
     <div class="exec-eyebrow">What Verity does</div>
     <p class="exec-text">Every study is trying to prove it's right. We're here to show you how they're all a little wrong. Verity answers a question nobody else is properly answering: <em>what does the accumulated peer-reviewed evidence actually show, and how far has media coverage drifted from it?</em> The consensus score comes from a deterministic algorithm, not an AI opinion. The media divergence layer is something no existing tool provides.</p>
+  </div>
+</section>
+
+<!-- PRODUCT VIDEO -->
+<section class="video-section reveal">
+  <div class="video-frame">
+    <video
+      src="https://raw.githubusercontent.com/arenttodal/verity/main/verityvideo.webm"
+      autoplay
+      muted
+      loop
+      playsinline
+      preload="auto"
+    ></video>
   </div>
 </section>
 
