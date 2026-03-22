@@ -5,258 +5,212 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Verity — Evidence Summary</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:     #07080f;
-  --paper:  rgba(255,255,255,0.92);
-  --muted:  rgba(255,255,255,0.35);
-  --border: rgba(255,255,255,0.07);
-  --gold:   #d4a847;
-  --red:    #b84040;
-  --blue:   #3b6eaa;
+  --bg:    #07080f;
+  --paper: rgba(255,255,255,0.92);
+  --muted: rgba(255,255,255,0.32);
+  --border:rgba(255,255,255,0.07);
+  --gold:  #d4a847;
+  --red:   rgba(184,64,64,1);
+  --blue:  rgba(59,110,170,1);
+  --orange:rgba(195,138,62,1);
 }
 
 html, body {
-  background: var(--bg);
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 16px;
+  background: var(--bg); min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 28px 16px 40px; font-family: 'Instrument Sans', sans-serif;
 }
 
-/* Grain overlay */
 body::before {
-  content: '';
-  position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  opacity: 0.16;
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.15;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.78' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23g)' opacity='0.09'/%3E%3C/svg%3E");
   background-size: 200px;
 }
 
+.wrap { width: 100%; max-width: 430px; position: relative; z-index: 1; }
+
 /* ── CARD ── */
 .card {
-  position: relative; z-index: 1;
-  width: 100%; max-width: 420px;
   background: #080910;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 20px;
-  overflow: hidden;
-  box-shadow:
-    0 0 0 1px rgba(255,255,255,0.03),
-    0 32px 80px rgba(0,0,0,0.7),
-    0 8px 24px rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 22px; overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.03), 0 40px 100px rgba(0,0,0,0.75), 0 10px 30px rgba(0,0,0,0.5);
+  position: relative;
 }
 
-/* Ambient glow inside card */
+/* Top-right ambient glow */
 .card::before {
-  content: '';
-  position: absolute;
-  top: -60px; right: -60px;
-  width: 320px; height: 320px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(78,152,200,0.10) 0%, transparent 70%);
-  pointer-events: none;
+  content: ''; position: absolute; top: -80px; right: -80px;
+  width: 360px; height: 360px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(78,152,200,0.09) 0%, transparent 65%);
 }
+/* Bottom-left warm glow */
 .card::after {
-  content: '';
-  position: absolute;
-  bottom: -40px; left: -40px;
-  width: 220px; height: 220px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(180,60,60,0.06) 0%, transparent 70%);
-  pointer-events: none;
+  content: ''; position: absolute; bottom: -60px; left: -60px;
+  width: 280px; height: 280px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(212,168,71,0.05) 0%, transparent 65%);
 }
 
 /* ── TOP BAR ── */
 .top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px 18px;
   border-bottom: 1px solid rgba(255,255,255,0.05);
 }
-
-.wordmark {
-  font-family: 'Instrument Sans', sans-serif;
-  font-size: 20px; font-weight: 600;
-  color: var(--paper);
-  letter-spacing: -0.01em;
-}
-
+.wordmark { font-size: 19px; font-weight: 600; color: var(--paper); letter-spacing: -0.01em; }
 .wordmark-sub {
-  font-family: 'DM Mono', monospace;
-  font-size: 8px; letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.22);
-  margin-top: 2px;
+  font-family: 'DM Mono', monospace; font-size: 7.5px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: rgba(255,255,255,0.20); margin-top: 2px;
 }
-
-.cert-badge {
-  font-family: 'DM Mono', monospace;
-  font-size: 8.5px; letter-spacing: 0.10em; text-transform: uppercase;
-  padding: 5px 10px;
-  border-radius: 6px;
-  border: 1px solid;
+.cert-pill {
+  font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: 0.10em;
+  text-transform: uppercase; padding: 5px 11px; border-radius: 6px; border: 1px solid;
 }
 .cert-strong  { color: rgba(80,190,120,0.85); border-color: rgba(80,190,120,0.25); background: rgba(80,190,120,0.06); }
-.cert-moderate{ color: rgba(200,175,60,0.85); border-color: rgba(200,175,60,0.25); background: rgba(200,175,60,0.06); }
-.cert-low     { color: rgba(200,130,60,0.80); border-color: rgba(200,130,60,0.25); background: rgba(200,130,60,0.06); }
-.cert-vlow    { color: rgba(200,80,80,0.80);  border-color: rgba(200,80,80,0.25);  background: rgba(200,80,80,0.06); }
+.cert-moderate{ color: rgba(200,175,60,0.85); border-color: rgba(200,175,60,0.22); background: rgba(200,175,60,0.06); }
+.cert-low     { color: rgba(200,130,60,0.80); border-color: rgba(200,130,60,0.22); background: rgba(200,130,60,0.06); }
+.cert-vlow    { color: rgba(200,80,80,0.80);  border-color: rgba(200,80,80,0.22);  background: rgba(200,80,80,0.06); }
 
-/* ── BODY ── */
-.body { padding: 24px 24px 0; }
-
-/* Query */
-.query-label {
-  font-family: 'DM Mono', monospace;
-  font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase;
-  color: rgba(255,255,255,0.22); margin-bottom: 10px;
+/* ── QUERY ── */
+.query-section { padding: 22px 24px 18px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.section-eyebrow {
+  font-family: 'DM Mono', monospace; font-size: 7.5px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: rgba(255,255,255,0.20); margin-bottom: 9px;
 }
-
 .query-text {
   font-family: 'Cormorant Garamond', serif;
-  font-size: clamp(22px, 6vw, 28px);
-  font-weight: 400; line-height: 1.20;
-  color: var(--paper);
-  margin-bottom: 28px;
-  letter-spacing: -0.01em;
+  font-size: clamp(20px, 5.5vw, 25px); font-weight: 400; line-height: 1.22;
+  color: var(--paper); letter-spacing: -0.01em;
 }
 
-/* ── SCORE SECTION ── */
-.score-section { margin-bottom: 24px; }
+/* ── CONSENSUS SECTION ── */
+.consensus-section { padding: 20px 24px 18px; border-bottom: 1px solid rgba(255,255,255,0.05); }
 
-.score-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.score-big {
+/* Dual score row */
+.score-row { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 16px; }
+.score-block { display: flex; flex-direction: column; }
+.score-value {
   font-family: 'Instrument Sans', sans-serif;
-  font-size: clamp(52px, 15vw, 72px);
-  font-weight: 700; line-height: 1;
+  font-size: clamp(36px, 11vw, 48px); font-weight: 500; line-height: 1;
   letter-spacing: -0.03em;
 }
-.score-big.left  { color: var(--red); }
-.score-big.right { color: var(--blue); }
-
-.score-label {
-  font-family: 'DM Mono', monospace;
-  font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
-  color: rgba(255,255,255,0.28);
-  text-align: right;
-  line-height: 1.6;
+.score-value.sci  { color: rgba(255,255,255,0.88); }
+.score-value.med  { color: var(--orange); }
+.score-sublabel {
+  font-family: 'DM Mono', monospace; font-size: 7.5px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: rgba(255,255,255,0.24); margin-top: 4px;
 }
+.score-sep { font-size: 11px; color: rgba(255,255,255,0.12); padding-bottom: 14px; flex-shrink: 0; }
 
-/* Bar */
-.bar-wrap { position: relative; height: 6px; border-radius: 3px; overflow: visible; margin-bottom: 12px; }
-
-.bar-track {
-  width: 100%; height: 6px; border-radius: 3px;
-  background: linear-gradient(to right, rgba(184,64,64,0.55) 0%, rgba(255,255,255,0.10) 50%, rgba(59,110,170,0.55) 100%);
+/* Bar track — shared axis */
+.dual-bar-wrap { position: relative; margin-bottom: 11px; }
+.bar-axis {
+  width: 100%; height: 5px; border-radius: 3px;
+  background: linear-gradient(to right, rgba(184,64,64,0.50) 0%, rgba(255,255,255,0.09) 50%, rgba(59,110,170,0.50) 100%);
+  position: relative;
 }
-
-.bar-pin {
-  position: absolute;
-  top: 50%; transform: translate(-50%, -50%);
-  width: 18px; height: 18px; border-radius: 50%;
+/* Science pin — white circle */
+.bar-pin-sci {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  width: 16px; height: 16px; border-radius: 50%;
   background: rgba(255,255,255,0.95);
-  box-shadow: 0 0 0 3px rgba(255,255,255,0.15), 0 2px 8px rgba(0,0,0,0.4);
+  box-shadow: 0 0 0 2.5px rgba(255,255,255,0.18), 0 2px 8px rgba(0,0,0,0.45);
+}
+/* Media pin — orange circle, slightly smaller */
+.bar-pin-med {
+  position: absolute; top: calc(100% + 8px); transform: translateX(-50%);
+  width: 13px; height: 13px; border-radius: 50%;
+  background: var(--orange);
+  box-shadow: 0 0 0 2px rgba(195,138,62,0.25), 0 2px 6px rgba(0,0,0,0.40);
+}
+/* Media axis line (slightly below) */
+.bar-axis-media {
+  width: 100%; height: 1.5px; border-radius: 1px; margin-top: 26px;
+  background: linear-gradient(to right, rgba(184,64,64,0.30) 0%, rgba(255,255,255,0.06) 50%, rgba(59,110,170,0.30) 100%);
+  position: relative;
 }
 
-.bar-labels {
-  display: flex; justify-content: space-between;
-  font-family: 'DM Mono', monospace;
-  font-size: 8px; letter-spacing: 0.10em; text-transform: uppercase;
+/* Row labels */
+.bar-row-labels {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 6px;
 }
-.bar-labels .lbl-left  { color: rgba(184,64,64,0.60); }
-.bar-labels .lbl-mid   { color: rgba(255,255,255,0.18); }
-.bar-labels .lbl-right { color: rgba(59,110,170,0.60); }
+.row-tag {
+  font-family: 'DM Mono', monospace; font-size: 7px; letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.row-tag.sci { color: rgba(255,255,255,0.30); }
+.row-tag.med { color: rgba(195,138,62,0.50); }
 
-/* ── DIVIDER ── */
-.divider { height: 1px; background: rgba(255,255,255,0.05); margin: 0 24px; }
+.bar-axis-labels {
+  display: flex; justify-content: space-between; margin-top: 12px;
+}
+.axis-lbl {
+  font-family: 'DM Mono', monospace; font-size: 7.5px; letter-spacing: 0.09em; text-transform: uppercase;
+}
+.axis-lbl.left  { color: rgba(184,64,64,0.55); }
+.axis-lbl.mid   { color: rgba(255,255,255,0.16); }
+.axis-lbl.right { color: rgba(59,110,170,0.55); }
+
+/* Divergence callout */
+.divergence {
+  margin-top: 14px; padding: 10px 14px;
+  background: rgba(255,255,255,0.025); border-radius: 8px;
+  border-left: 2px solid rgba(195,138,62,0.35);
+  font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.35); line-height: 1.6;
+  display: none;
+}
+.divergence strong { color: var(--orange); font-weight: 500; }
 
 /* ── VERDICT ── */
-.verdict-section { padding: 20px 24px; }
-
-.verdict-label {
-  font-family: 'DM Mono', monospace;
-  font-size: 7.5px; letter-spacing: 0.18em; text-transform: uppercase;
-  color: rgba(255,255,255,0.22); margin-bottom: 10px;
-}
-
+.verdict-section { padding: 18px 24px; border-bottom: 1px solid rgba(255,255,255,0.05); }
 .verdict-text {
-  font-family: 'Instrument Sans', sans-serif;
-  font-size: clamp(14px, 3.8vw, 16px);
-  font-weight: 400; line-height: 1.72;
-  color: rgba(255,255,255,0.75);
+  font-size: clamp(13px, 3.8vw, 15px); font-weight: 400;
+  line-height: 1.72; color: rgba(255,255,255,0.68);
 }
 
 /* ── EVIDENCE STRIP ── */
-.strip-section {
-  padding: 0 24px 20px;
-  border-top: 1px solid rgba(255,255,255,0.05);
-  margin-top: 4px;
-  padding-top: 16px;
+.strip-section { padding: 16px 24px 18px; }
+.strip-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.strip-legend { display: flex; align-items: center; gap: 12px; }
+.legend-item { display: flex; align-items: center; gap: 5px; }
+.legend-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  flex-shrink: 0;
 }
-
-.strip-label {
-  font-family: 'DM Mono', monospace;
-  font-size: 7.5px; letter-spacing: 0.16em; text-transform: uppercase;
-  color: rgba(255,255,255,0.20); margin-bottom: 10px;
+.legend-label {
+  font-family: 'DM Mono', monospace; font-size: 7px; letter-spacing: 0.10em;
+  text-transform: uppercase; color: rgba(255,255,255,0.28);
 }
-
-#shareStrip {
-  width: 100%;
-  display: block;
-  overflow: visible;
-}
+#shareStrip { width: 100%; display: block; overflow: visible; }
 
 /* ── FOOTER ── */
 .footer {
-  padding: 14px 24px;
-  border-top: 1px solid rgba(255,255,255,0.05);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  padding: 13px 24px; border-top: 1px solid rgba(255,255,255,0.05);
+  display: flex; align-items: center; justify-content: space-between;
 }
+.footer-url { font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 0.09em; color: rgba(255,255,255,0.22); }
+.footer-right { font-family: 'DM Mono', monospace; font-size: 7.5px; letter-spacing: 0.11em; text-transform: uppercase; color: rgba(255,255,255,0.14); }
 
-.footer-url {
-  font-family: 'DM Mono', monospace;
-  font-size: 9px; letter-spacing: 0.10em;
-  color: rgba(255,255,255,0.20);
+/* ── BACK LINK ── */
+.back-link {
+  display: block; text-align: center; margin-top: 18px;
+  font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 0.13em;
+  text-transform: uppercase; color: rgba(255,255,255,0.18);
+  text-decoration: none; transition: color 0.15s;
 }
-
-.footer-right {
-  font-family: 'DM Mono', monospace;
-  font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase;
-  color: rgba(255,255,255,0.14);
-}
-
-.back-btn {
-  display: block;
-  text-align: center;
-  margin-top: 20px;
-  font-family: 'DM Mono', monospace;
-  font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
-  color: rgba(255,255,255,0.20);
-  text-decoration: none;
-  transition: color 0.15s;
-}
-.back-btn:hover { color: rgba(255,255,255,0.45); }
-
+.back-link:hover { color: rgba(255,255,255,0.42); }
 </style>
 </head>
 <body>
-
-<div style="width:100%;max-width:420px;position:relative;z-index:1;">
-  <div class="card" id="shareCard">
+<div class="wrap">
+  <div class="card">
 
     <!-- TOP BAR -->
     <div class="top-bar">
@@ -264,222 +218,264 @@ body::before {
         <div class="wordmark">Verity</div>
         <div class="wordmark-sub">Evidence Intelligence</div>
       </div>
-      <div class="cert-badge" id="certBadge"></div>
+      <div class="cert-pill" id="certPill"></div>
     </div>
 
-    <!-- BODY -->
-    <div class="body">
-
-      <!-- Query -->
-      <div class="query-label">Research question</div>
+    <!-- QUERY -->
+    <div class="query-section">
+      <div class="section-eyebrow">Research question</div>
       <div class="query-text" id="queryText">Loading…</div>
+    </div>
 
-      <!-- Score -->
-      <div class="score-section">
-        <div class="score-row">
-          <div class="score-big" id="scoreBig">—%</div>
-          <div class="score-label" id="scoreLabel"></div>
+    <!-- CONSENSUS -->
+    <div class="consensus-section">
+      <div class="section-eyebrow">Consensus overview</div>
+
+      <!-- Dual score numbers -->
+      <div class="score-row">
+        <div class="score-block">
+          <div class="score-value sci" id="sciScore">—%</div>
+          <div class="score-sublabel">Science</div>
         </div>
-        <div class="bar-wrap">
-          <div class="bar-track"></div>
-          <div class="bar-pin" id="barPin"></div>
+        <div class="score-sep">/</div>
+        <div class="score-block">
+          <div class="score-value med" id="medScore">—%</div>
+          <div class="score-sublabel">Media</div>
         </div>
-        <div class="bar-labels">
-          <span class="lbl-left" id="lblLeft">Concern</span>
-          <span class="lbl-mid">Neutral</span>
-          <span class="lbl-right" id="lblRight">Benefit</span>
+        <div style="flex:1;"></div>
+        <div style="text-align:right;padding-bottom:12px;">
+          <div class="score-sublabel" id="dirLabel" style="font-size:8px;color:rgba(255,255,255,0.30);line-height:1.8;"></div>
         </div>
       </div>
 
+      <!-- Dual bar -->
+      <div class="dual-bar-wrap">
+        <div class="bar-axis">
+          <div class="bar-pin-sci" id="sciPin"></div>
+          <div class="bar-pin-med" id="medPin"></div>
+        </div>
+        <div class="bar-axis-media"></div>
+        <div class="bar-row-labels" style="margin-top:-28px;">
+          <span class="row-tag sci">● Science</span>
+          <span class="row-tag med" style="position:absolute;right:0;margin-top:28px;">● Media</span>
+        </div>
+      </div>
+      <div style="height:22px;"></div>
+      <div class="bar-axis-labels">
+        <span class="axis-lbl left" id="lblLeft">Concern</span>
+        <span class="axis-lbl mid">Neutral</span>
+        <span class="axis-lbl right" id="lblRight">Benefit</span>
+      </div>
+
+      <!-- Divergence note -->
+      <div class="divergence" id="divergenceNote"></div>
     </div>
 
-    <div class="divider"></div>
-
-    <!-- Verdict -->
+    <!-- VERDICT -->
     <div class="verdict-section">
-      <div class="verdict-label">Bottom line</div>
+      <div class="section-eyebrow">Bottom line</div>
       <div class="verdict-text" id="verdictText">—</div>
     </div>
 
-    <!-- Evidence strip -->
+    <!-- EVIDENCE STRIP -->
     <div class="strip-section">
-      <div class="strip-label" id="stripLabel">Evidence strip</div>
-      <svg id="shareStrip" height="70" viewBox="0 0 372 70" preserveAspectRatio="none"></svg>
+      <div class="strip-header">
+        <div class="section-eyebrow" style="margin:0;" id="stripLabel">Evidence strip</div>
+        <div class="strip-legend">
+          <div class="legend-item">
+            <div class="legend-dot" style="background:rgba(235,238,252,0.75);"></div>
+            <span class="legend-label">Science</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background:var(--orange);opacity:0.7;"></div>
+            <span class="legend-label">Media</span>
+          </div>
+        </div>
+      </div>
+      <svg id="shareStrip" height="90" viewBox="0 0 382 90" preserveAspectRatio="none"></svg>
     </div>
 
-    <!-- Footer -->
+    <!-- FOOTER -->
     <div class="footer">
       <div class="footer-url">verity.science</div>
-      <div class="footer-right" id="studyCount"></div>
+      <div class="footer-right" id="countLabel"></div>
     </div>
 
   </div>
-
-  <a class="back-btn" href="javascript:window.close()">← Close and return to search</a>
+  <a class="back-link" id="backLink" href="/">← Back to search</a>
 </div>
 
 <script>
-// ── Parse URL params ────────────────────────────────────────────
 const p = new URLSearchParams(window.location.search);
 
-const query      = p.get('q')  || 'Unknown query';
+const query      = p.get('q')  || '';
 const sciPct     = parseInt(p.get('s')  || '50', 10);
+const medPct     = parseInt(p.get('ms') || '50', 10);
 const leftLabel  = p.get('l')  || 'Concern';
 const rightLabel = p.get('r')  || 'Benefit';
 const verdict    = p.get('v')  || '';
 const certText   = p.get('c')  || '';
 const dotsRaw    = p.get('d')  || '';
+const mDotsRaw   = p.get('md') || '';
 const nStudies   = p.get('n')  || '0';
 const nMedia     = p.get('nm') || '0';
 
-// ── Populate text fields ────────────────────────────────────────
+// ── Text fields ──────────────────────────────────────────────────
 document.title = 'Verity — ' + query.slice(0, 60);
-document.getElementById('queryText').textContent  = query;
-document.getElementById('verdictText').textContent = verdict || 'No verdict available.';
-document.getElementById('lblLeft').textContent   = leftLabel;
-document.getElementById('lblRight').textContent  = rightLabel;
+document.getElementById('queryText').textContent    = query;
+document.getElementById('verdictText').textContent  = verdict || '—';
+document.getElementById('lblLeft').textContent      = '← ' + leftLabel;
+document.getElementById('lblRight').textContent     = rightLabel + ' →';
+document.getElementById('countLabel').textContent   =
+  nStudies + ' studies · ' + nMedia + ' media';
+document.getElementById('stripLabel').textContent   =
+  'Evidence strip · ' + nStudies + ' science · ' + nMedia + ' media';
 
-const nLabel = nMedia > 0
-  ? nStudies + ' studies · ' + nMedia + ' media'
-  : nStudies + ' studies';
-document.getElementById('studyCount').textContent = nLabel;
-document.getElementById('stripLabel').textContent =
-  'Evidence strip · ' + nStudies + ' studies';
+// ── Score display ────────────────────────────────────────────────
+const sDir = sciPct >= 50 ? rightLabel : leftLabel;
+document.getElementById('sciScore').textContent = sciPct + '%';
+document.getElementById('medScore').textContent = medPct + '%';
+document.getElementById('dirLabel').innerHTML =
+  sDir.toUpperCase() + '<br><span style="opacity:0.5;font-size:7px;">consensus direction</span>';
 
-// ── Score display ───────────────────────────────────────────────
-const isLeft = sciPct < 50;
-const bigEl  = document.getElementById('scoreBig');
-bigEl.textContent = sciPct + '%';
-bigEl.className   = 'score-big ' + (isLeft ? 'left' : 'right');
+// Pins
+document.getElementById('sciPin').style.left = sciPct + '%';
+document.getElementById('medPin').style.left = medPct + '%';
 
-const scoreLabel = document.getElementById('scoreLabel');
-scoreLabel.innerHTML = (isLeft ? leftLabel : rightLabel).toUpperCase()
-  + '<br><span style="font-size:7px;opacity:0.5;letter-spacing:0.08em;">science consensus</span>';
-
-// Pin position
-const pin = document.getElementById('barPin');
-pin.style.left = sciPct + '%';
-
-// ── Certainty badge ─────────────────────────────────────────────
-const badge = document.getElementById('certBadge');
-badge.textContent = certText || 'Unknown signal';
+// ── Cert badge ───────────────────────────────────────────────────
+const pill = document.getElementById('certPill');
+pill.textContent = certText || '—';
 const cl = certText.toLowerCase();
-if (cl.includes('strong'))       badge.className = 'cert-badge cert-strong';
-else if (cl.includes('moderate')) badge.className = 'cert-badge cert-moderate';
-else if (cl.includes('low') && !cl.includes('very')) badge.className = 'cert-badge cert-low';
-else                              badge.className = 'cert-badge cert-vlow';
+if      (cl.includes('strong'))                    pill.className = 'cert-pill cert-strong';
+else if (cl.includes('moderate'))                  pill.className = 'cert-pill cert-moderate';
+else if (cl.includes('low') && !cl.includes('very')) pill.className = 'cert-pill cert-low';
+else                                               pill.className = 'cert-pill cert-vlow';
 
-// ── Evidence strip ──────────────────────────────────────────────
-const svg = document.getElementById('shareStrip');
-const W = 372, H = 70;
-const axisY = 44;
-
-// Axis gradient line
-const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
-const grad = document.createElementNS('http://www.w3.org/2000/svg','linearGradient');
-grad.id = 'axGrad'; grad.setAttribute('x1','0%'); grad.setAttribute('x2','100%');
-const s1 = document.createElementNS('http://www.w3.org/2000/svg','stop');
-s1.setAttribute('offset','0%');   s1.setAttribute('stop-color','rgba(184,64,64,0.55)');
-const s2 = document.createElementNS('http://www.w3.org/2000/svg','stop');
-s2.setAttribute('offset','50%');  s2.setAttribute('stop-color','rgba(255,255,255,0.15)');
-const s3 = document.createElementNS('http://www.w3.org/2000/svg','stop');
-s3.setAttribute('offset','100%'); s3.setAttribute('stop-color','rgba(59,110,170,0.55)');
-grad.appendChild(s1); grad.appendChild(s2); grad.appendChild(s3);
-defs.appendChild(grad); svg.appendChild(defs);
-
-const axis = document.createElementNS('http://www.w3.org/2000/svg','line');
-axis.setAttribute('x1','0'); axis.setAttribute('x2',W);
-axis.setAttribute('y1',axisY); axis.setAttribute('y2',axisY);
-axis.setAttribute('stroke','url(#axGrad)'); axis.setAttribute('stroke-width','1.2');
-svg.appendChild(axis);
-
-// Parse and draw dots
-if (dotsRaw) {
-  const TICK_H = [0, 6, 9, 14, 20, 28];
-  const TYPE_COLORS = {
-    meta:    'rgba(235,238,252,0.82)',
-    rct:     'rgba(210,224,242,0.60)',
-    cohort:  'rgba(185,218,210,0.46)',
-    obs:     'rgba(175,178,200,0.30)',
-    unknown: 'rgba(170,174,200,0.24)',
-  };
-
-  const dots = dotsRaw.split('|').map(s => {
-    const parts = s.split(',');
-    return { x: parseFloat(parts[0]), w: parseInt(parts[1]||2), t: parts[2]||'unknown' };
-  }).filter(d => !isNaN(d.x));
-
-  // Jitter to avoid stacking
-  const placed = [];
-  dots.forEach(d => {
-    let sx = Math.round(d.x * W);
-    placed.forEach(p => { if (Math.abs(sx - p) < 3) sx += 3; });
-    placed.push(sx);
-
-    const tH = TICK_H[Math.min(5, Math.max(1, d.w))] || 9;
-    const col = TYPE_COLORS[d.t] || TYPE_COLORS.unknown;
-    const isMeta = d.t === 'meta';
-
-    if (isMeta) {
-      const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
-      rect.setAttribute('x', sx - 2);
-      rect.setAttribute('y', axisY - tH);
-      rect.setAttribute('width', 4);
-      rect.setAttribute('height', tH);
-      rect.setAttribute('rx', 1.5);
-      rect.setAttribute('fill', col);
-      svg.appendChild(rect);
-    } else {
-      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
-      line.setAttribute('x1', sx); line.setAttribute('x2', sx);
-      line.setAttribute('y1', axisY - tH); line.setAttribute('y2', axisY);
-      line.setAttribute('stroke', col);
-      line.setAttribute('stroke-width', isMeta ? '2.5' : '1.2');
-      svg.appendChild(line);
-    }
-  });
-
-  // Weighted average blade
-  const tw = dots.reduce((s,d) => s + d.w, 0) || 1;
-  const ax = dots.reduce((s,d) => s + d.x * d.w, 0) / tw;
-  const avX = Math.round(ax * W);
-  const bladeTop = axisY - 24;
-
-  const blade = document.createElementNS('http://www.w3.org/2000/svg','line');
-  blade.setAttribute('x1', avX); blade.setAttribute('x2', avX);
-  blade.setAttribute('y1', bladeTop); blade.setAttribute('y2', axisY);
-  blade.setAttribute('stroke', 'rgba(255,255,255,0.60)');
-  blade.setAttribute('stroke-width', '1.2');
-  svg.appendChild(blade);
-
-  const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
-  dot.setAttribute('cx', avX); dot.setAttribute('cy', bladeTop);
-  dot.setAttribute('r', '3.5');
-  dot.setAttribute('fill', 'rgba(255,255,255,0.65)');
-  svg.appendChild(dot);
-
-  const avgLabel = document.createElementNS('http://www.w3.org/2000/svg','text');
-  avgLabel.setAttribute('x', avX + 6);
-  avgLabel.setAttribute('y', bladeTop + 4);
-  avgLabel.setAttribute('font-family', 'DM Mono, monospace');
-  avgLabel.setAttribute('font-size', '8');
-  avgLabel.setAttribute('fill', 'rgba(255,255,255,0.35)');
-  avgLabel.setAttribute('letter-spacing', '0.06em');
-  avgLabel.textContent = 'AVG';
-  svg.appendChild(avgLabel);
+// ── Divergence note ──────────────────────────────────────────────
+const div = Math.abs(sciPct - medPct);
+const divEl = document.getElementById('divergenceNote');
+if (div >= 8) {
+  const dir = medPct > sciPct ? rightLabel : leftLabel;
+  const sign = medPct > sciPct ? '+' : '-';
+  divEl.innerHTML =
+    `<strong>${sign}${div}% divergence.</strong> Media coverage leans ${div} points further toward "${dir}" than the science supports.`;
+  divEl.style.display = 'block';
 }
 
-// ── Back link: if opened from verity, go back ─────────────────────
-const backBtn = document.querySelector('.back-btn');
-if (document.referrer && document.referrer.includes(window.location.host)) {
-  backBtn.href = document.referrer;
-  backBtn.textContent = '← Back to results';
-} else if (window.history.length > 1) {
-  backBtn.href = 'javascript:history.back()';
-  backBtn.textContent = '← Back to results';
+// ── Evidence strip (SVG) ─────────────────────────────────────────
+const svg = document.getElementById('shareStrip');
+const W = 382, H = 90;
+const sciAxisY = 38;
+const medAxisY = 66;
+
+const ns = 'http://www.w3.org/2000/svg';
+
+function mkEl(tag, attrs) {
+  const el = document.createElementNS(ns, tag);
+  for (const [k,v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+}
+
+// Gradient defs
+const defs = mkEl('defs', {});
+function makeGrad(id, c1, c2, c3) {
+  const g = mkEl('linearGradient', { id, x1:'0%', x2:'100%' });
+  const s1 = mkEl('stop', { offset:'0%',   'stop-color': c1 });
+  const s2 = mkEl('stop', { offset:'50%',  'stop-color': c2 });
+  const s3 = mkEl('stop', { offset:'100%', 'stop-color': c3 });
+  g.appendChild(s1); g.appendChild(s2); g.appendChild(s3);
+  return g;
+}
+defs.appendChild(makeGrad('axG1', 'rgba(184,64,64,0.55)', 'rgba(255,255,255,0.12)', 'rgba(59,110,170,0.55)'));
+defs.appendChild(makeGrad('axG2', 'rgba(184,64,64,0.28)', 'rgba(255,255,255,0.06)', 'rgba(59,110,170,0.28)'));
+svg.appendChild(defs);
+
+// Science axis line
+svg.appendChild(mkEl('line', { x1:0, x2:W, y1:sciAxisY, y2:sciAxisY, stroke:'url(#axG1)', 'stroke-width':'1.2' }));
+
+// Row labels left-side
+function svgText(text, x, y, fill, size, spacing) {
+  const t = mkEl('text', { x, y, fill, 'font-family':'DM Mono, monospace', 'font-size':size, 'letter-spacing':spacing });
+  t.textContent = text;
+  return t;
+}
+svg.appendChild(svgText('SCIENCE', 0, sciAxisY - 6, 'rgba(255,255,255,0.20)', '7', '0.12em'));
+
+// Media axis line
+svg.appendChild(mkEl('line', { x1:0, x2:W, y1:medAxisY, y2:medAxisY, stroke:'url(#axG2)', 'stroke-width':'1' }));
+svg.appendChild(svgText('MEDIA', 0, medAxisY - 6, 'rgba(195,138,62,0.45)', '7', '0.12em'));
+
+// ── Science ticks ────────────────────────────────────────────────
+const TICK_H = [0, 6, 9, 14, 20, 26];
+const SCI_COL = {
+  meta:    'rgba(235,238,252,0.84)',
+  rct:     'rgba(210,224,242,0.62)',
+  cohort:  'rgba(185,218,210,0.46)',
+  obs:     'rgba(175,178,200,0.30)',
+  unknown: 'rgba(170,174,200,0.24)',
+};
+
+const sciDots = dotsRaw
+  ? dotsRaw.split('|').map(s => { const [x,w,t] = s.split(','); return { x:parseFloat(x), w:parseInt(w)||2, t:t||'unknown'}; }).filter(d => !isNaN(d.x))
+  : [];
+
+const placed = [];
+sciDots.forEach(d => {
+  let sx = Math.round(d.x * W);
+  placed.forEach(pp => { if (Math.abs(sx-pp) < 3) sx += 3; });
+  placed.push(sx);
+  const tH = TICK_H[Math.min(5, Math.max(1, d.w))];
+  const col = SCI_COL[d.t] || SCI_COL.unknown;
+  if (d.t === 'meta') {
+    svg.appendChild(mkEl('rect', { x:sx-2, y:sciAxisY-tH, width:4, height:tH, rx:1.5, fill:col }));
+  } else {
+    svg.appendChild(mkEl('line', { x1:sx, x2:sx, y1:sciAxisY-tH, y2:sciAxisY, stroke:col, 'stroke-width':'1.2' }));
+  }
+});
+
+// Science avg blade
+if (sciDots.length > 0) {
+  const tw = sciDots.reduce((s,d) => s+d.w, 0) || 1;
+  const ax = sciDots.reduce((s,d) => s+d.x*d.w, 0) / tw;
+  const avX = Math.round(ax * W);
+  svg.appendChild(mkEl('line', { x1:avX, x2:avX, y1:sciAxisY-20, y2:sciAxisY, stroke:'rgba(255,255,255,0.55)', 'stroke-width':'1.2' }));
+  svg.appendChild(mkEl('circle', { cx:avX, cy:sciAxisY-20, r:3, fill:'rgba(255,255,255,0.60)' }));
+  svg.appendChild(svgText('AVG', avX+5, sciAxisY-17, 'rgba(255,255,255,0.32)', '7', '0.06em'));
+}
+
+// ── Media ticks ──────────────────────────────────────────────────
+const mediaDots = mDotsRaw
+  ? mDotsRaw.split('|').map(s => { const [x,w] = s.split(','); return { x:parseFloat(x), w:parseInt(w)||2 }; }).filter(d => !isNaN(d.x))
+  : [];
+
+const mPlaced = [];
+mediaDots.forEach(d => {
+  let sx = Math.round(d.x * W);
+  mPlaced.forEach(pp => { if (Math.abs(sx-pp) < 3) sx += 3; });
+  mPlaced.push(sx);
+  const tH = Math.round(5 + d.w * 2);
+  svg.appendChild(mkEl('line', { x1:sx, x2:sx, y1:medAxisY-tH, y2:medAxisY,
+    stroke:'rgba(195,138,62,0.55)', 'stroke-width':'1.2' }));
+});
+
+// Media avg blade
+if (mediaDots.length > 0) {
+  const tw = mediaDots.reduce((s,d) => s+d.w, 0) || 1;
+  const ax = mediaDots.reduce((s,d) => s+d.x*d.w, 0) / tw;
+  const avX = Math.round(ax * W);
+  svg.appendChild(mkEl('line', { x1:avX, x2:avX, y1:medAxisY-16, y2:medAxisY,
+    stroke:'rgba(195,138,62,0.65)', 'stroke-width':'1.2' }));
+  svg.appendChild(mkEl('circle', { cx:avX, cy:medAxisY-16, r:3, fill:'rgba(195,138,62,0.70)' }));
+  svg.appendChild(svgText('AVG', avX+5, medAxisY-13, 'rgba(195,138,62,0.42)', '7', '0.06em'));
+}
+
+// ── Back link ────────────────────────────────────────────────────
+const bl = document.getElementById('backLink');
+if (window.history.length > 1) {
+  bl.href = 'javascript:history.back()';
+  bl.textContent = '← Back to results';
 } else {
-  backBtn.href = '/';
-  backBtn.textContent = '← Search Verity';
+  bl.href = '/'; bl.textContent = '← Search Verity';
 }
 </script>
 </body>

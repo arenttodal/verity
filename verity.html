@@ -2126,29 +2126,37 @@ function openShareCard() {
   const verdict    = document.getElementById('verdictText')?.textContent  || '';
   const certText   = document.getElementById('certLabel')?.textContent    || '';
   const sciPct     = window._sciPct     || 50;
+  const medPct     = window._medPct     || 50;
   const rightLabel = window._rightLabel || 'Benefit';
   const leftLabel  = window._leftLabel  || 'Concern';
-  const dots       = (typeof scienceDots !== 'undefined') ? scienceDots : [];
-  const nStudies   = dots.length;
-  const nMedia     = (typeof mediaDots !== 'undefined') ? mediaDots.length : 0;
+  const sDots      = (typeof scienceDots !== 'undefined') ? scienceDots : [];
+  const mDots      = (typeof mediaDots   !== 'undefined') ? mediaDots   : [];
 
-  // Encode dots as compact string: x,weight,type|x,weight,type|...
-  const dotsStr = dots.map(d => [
+  // Encode science dots: x,weight,type
+  const dotsStr = sDots.map(d => [
     (d.x || 0).toFixed(3),
     Math.min(5, Math.max(1, Math.round(d.weight) || 2)),
     d.type || 'unknown'
   ].join(',')).join('|');
 
+  // Encode media dots: x,weight (type always 'media')
+  const mDotsStr = mDots.map(d => [
+    (d.x || 0).toFixed(3),
+    Math.min(4, Math.max(1, Math.round(d.weight) || 2))
+  ].join(',')).join('|');
+
   const params = new URLSearchParams({
     q:  query,
     s:  sciPct,
+    ms: medPct,
     l:  leftLabel,
     r:  rightLabel,
     v:  verdict,
     c:  certText,
     d:  dotsStr,
-    n:  nStudies,
-    nm: nMedia,
+    md: mDotsStr,
+    n:  sDots.length,
+    nm: mDots.length,
   });
 
   window.open('/share.html?' + params.toString(), '_blank');
