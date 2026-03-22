@@ -172,6 +172,26 @@ body::before {
 .footer-right { font-family: 'DM Mono', monospace; font-size: 7.5px; letter-spacing: 0.11em; text-transform: uppercase; color: rgba(255,255,255,0.14); }
 
 /* ── BACK LINK ── */
+/* ── MOBILE: full-screen, no card chrome ── */
+@media (max-width: 600px) {
+  html, body {
+    padding: 0;
+    align-items: flex-start;
+  }
+  .wrap {
+    max-width: 100%;
+    padding: 0;
+  }
+  .card {
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    min-height: 100vh;
+  }
+  .card::before, .card::after { display: none; }
+  .back-link { padding: 0 20px 16px; }
+}
+
 .back-link {
   display: block; text-align: center; margin-top: 18px;
   font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 0.13em;
