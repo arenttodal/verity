@@ -1697,12 +1697,12 @@ Return ONLY:
 //  MAIN ENDPOINT
 // ─────────────────────────────────────────────────────────────────
 app.post('/api/search', async (req, res) => {
-  const { query, forceRefresh, deepMode } = req.body;
+  const { query, forceRefresh, deepMode, trackTopic } = req.body;
   if (!query?.trim()) return res.status(400).json({ error: 'query is required' });
 
   const t0 = Date.now();
   console.log(`\n${'═'.repeat(60)}`);
-  console.log(`[${new Date().toISOString()}] "${query}"${deepMode ? ' (DEEP MODE)' : ''}`);
+  console.log(`[${new Date().toISOString()}] "${query}"${deepMode ? ' (DEEP MODE)' : ''}${trackTopic ? ' (TRACK TOPIC)' : ''}`);
   
   // ── CACHE CHECK ──────────────────────────────────────────────
   if (!forceRefresh) {
@@ -1928,6 +1928,7 @@ app.post('/api/search', async (req, res) => {
         score:         scoring.score,
         durationMs:    Date.now() - t0,
         deepMode:      deepMode || false,
+        trackTopic:    trackTopic || false,
         algorithm:     'v8-word-boundary-fix',
         requiredTerms: frame.requiredTerms,
         synonyms:      frame.synonyms,
