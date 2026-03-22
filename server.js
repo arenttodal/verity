@@ -272,28 +272,32 @@ Return ONLY this JSON:
   "mediaSubjectTerms": ["<the specific subject word that MUST appear in any relevant article title — same logic as requiredTerms>"],
   "mediaOutcomeTerms": ["<outcome word 1 that should appear>", "<outcome word 2>", "<outcome word 3>"],
   "isDebatable":   <true if real scientific debate, false if near-consensus>,
-  "leftClaim":     "<3-6 words: the null/skeptical position — always the position that the effect does NOT exist>",
+  "leftClaim":     "<3-6 words: ALWAYS the concern/harm/risk/negative position>",
   "leftDesc":      "<8-12 words describing it>",
-  "rightClaim":    "<3-6 words: the position that the primary effect DOES exist — regardless of whether it is good or bad>",
+  "rightClaim":    "<3-6 words: ALWAYS the safe/beneficial/positive/no-harm position>",
   "rightDesc":     "<8-12 words describing it>",
-  "axisLeftLabel": "<1-2 words for the left end of the axis — e.g. 'No effect', 'Safe', 'No benefit', 'No risk'>",
-  "axisRightLabel":"<1-2 words for the right end of the axis — e.g. 'Beneficial', 'Harmful', 'Effective', 'Risky', 'Increases risk'>",
+  "axisLeftLabel": "<1-2 words for the LEFT (concern/harm) end — e.g. 'Harmful', 'Risky', 'Concern', 'Causes harm'>",
+  "axisRightLabel":"<1-2 words for the RIGHT (safe/beneficial) end — e.g. 'Safe', 'Beneficial', 'Effective', 'No harm'>",
   "domain":        "<nutrition|pharmacology|exercise_science|mental_health|environmental|clinical|other>"
 }
 
-CRITICAL RULES FOR axisLeftLabel and axisRightLabel:
-The axis labels must describe what each END of the spectrum means for THIS specific question.
-- If the question is about something BENEFICIAL (e.g. does exercise improve health): axisRightLabel = "Beneficial"
-- If the question is about something HARMFUL (e.g. does X cause disease/risk/harm): axisRightLabel = "Harmful" or "Increases risk"
-- If the question is about safety (e.g. is X safe): axisLeftLabel = "Unsafe", axisRightLabel = "Safe"
-- axisLeftLabel is always the ABSENCE or OPPOSITE of the right side
-Examples:
-- "does coffee reduce mortality" → axisLeftLabel: "No effect", axisRightLabel: "Reduces mortality"
-- "does ultraprocessed food cause disease" → axisLeftLabel: "No harm", axisRightLabel: "Increases risk"
-- "does creatine improve muscle" → axisLeftLabel: "No effect", axisRightLabel: "Effective"
-- "does smoking cause cancer" → axisLeftLabel: "No link", axisRightLabel: "Causes cancer"
-- "is a vegan diet healthy" → axisLeftLabel: "Not healthier", axisRightLabel: "Beneficial"
-- "do psychedelics help depression" → axisLeftLabel: "No benefit", axisRightLabel: "Effective"
+ABSOLUTE RULE FOR LEFT/RIGHT ORIENTATION — THIS IS THE MOST IMPORTANT RULE:
+The LEFT side is ALWAYS the concern/harm/risk/negative position (displayed in RED).
+The RIGHT side is ALWAYS the safe/beneficial/positive/no-harm position (displayed in BLUE).
+This never changes regardless of how the question is worded.
+
+EXAMPLES — study these carefully:
+- "does aspartame cause harm?" → leftClaim: "causes harm", rightClaim: "is safe", axisLeftLabel: "Harmful", axisRightLabel: "Safe"
+- "is aspartame safe?" → leftClaim: "unsafe, causes harm", rightClaim: "safe, no harm", axisLeftLabel: "Harmful", axisRightLabel: "Safe"
+- "does smoking cause cancer?" → leftClaim: "causes cancer", rightClaim: "no cancer link", axisLeftLabel: "Causes cancer", axisRightLabel: "No link"
+- "does creatine improve muscle?" → leftClaim: "no effect on muscle", rightClaim: "improves muscle", axisLeftLabel: "No effect", axisRightLabel: "Effective"
+- "does exercise reduce heart disease?" → leftClaim: "no cardiovascular benefit", rightClaim: "reduces heart disease", axisLeftLabel: "No benefit", axisRightLabel: "Beneficial"
+- "does ultraprocessed food cause disease?" → leftClaim: "increases disease risk", rightClaim: "no significant harm", axisLeftLabel: "Increases risk", axisRightLabel: "No harm"
+- "does coffee reduce mortality?" → leftClaim: "no mortality benefit", rightClaim: "reduces mortality", axisLeftLabel: "No benefit", axisRightLabel: "Beneficial"
+- "do psychedelics help depression?" → leftClaim: "ineffective for depression", rightClaim: "improves depression", axisLeftLabel: "No benefit", axisRightLabel: "Effective"
+- "is a vegan diet healthy?" → leftClaim: "nutritionally risky", rightClaim: "metabolically beneficial", axisLeftLabel: "Risky", axisRightLabel: "Beneficial"
+
+NOTE on harm questions: when the topic is about whether X causes harm, "harm confirmed" goes LEFT (red = concern) and "safe/no harm" goes RIGHT (blue = reassuring). A study showing X is dangerous should plot toward LEFT. A study showing X is safe plots toward RIGHT.
 
 
 CRITICAL RULES FOR mediaSubjectTerms and mediaOutcomeTerms:
@@ -622,11 +626,19 @@ DESIGN CLASSIFICATION RULES (be accurate):
 - obs: "observational" without specifying type
 - narrative_review: "review" without systematic/meta
 
-DIRECTION RULES:
-- supports_right: paper shows the intervention has positive/beneficial effects on this outcome
-- supports_left: paper shows harm, null effect, or that the concern is valid
+DIRECTION RULES — must align with axis orientation:
+- supports_left: paper supports the CONCERN/HARM/RISK/NEGATIVE position (left = red side)
+- supports_right: paper supports the SAFE/BENEFICIAL/POSITIVE/NO-HARM position (right = blue side)
 - neutral: no difference found, p>0.05 on primary outcome
 - mixed: paper reports both positive and negative effects on same outcome
+
+For harm questions (e.g. "does X cause disease"):
+- A paper finding X IS harmful → supports_left
+- A paper finding X is safe / no harm found → supports_right
+
+For benefit questions (e.g. "does X improve health"):
+- A paper finding X has NO benefit → supports_left
+- A paper finding X IS beneficial → supports_right
 
 MAGNITUDE: use stated effect sizes. If none stated, use language: "significantly improved/reduced" → 0.6, "modest improvement" → 0.35, "no significant difference" → 0.05, "trend toward" → 0.15`
       }]
@@ -1366,17 +1378,17 @@ async function analyzeMedia(plain, articles, frame) {
       content: `Topic: "${plain}"
 
 The spectrum has two sides:
-LEFT (concern) side = "${frame.leftClaim}"
-RIGHT (benefit) side = "${frame.rightClaim}"
+LEFT (red, concern) side = "${frame.leftClaim}" — axis label: "${frame.axisLeftLabel || 'Concern'}"
+RIGHT (blue, safe/beneficial) side = "${frame.rightClaim}" — axis label: "${frame.axisRightLabel || 'Beneficial'}"
 
 For each headline, decide which SIDE OF THE SPECTRUM it supports:
-- "concern" = article frames the topic as risky, harmful, or supports the concern/skeptical position (LEFT side)
-- "benefit" = article frames the topic as safe, beneficial, or positive (RIGHT side)
+- "concern" = article frames the topic negatively, as risky or harmful — maps to LEFT (red)
+- "benefit" = article frames the topic positively, as safe or beneficial — maps to RIGHT (blue)
 - "neutral" = balanced or neither
 
-IMPORTANT: "concern" always maps to the LEFT side of the spectrum, "benefit" to the RIGHT.
-Example: for sleep deprivation, an article saying "lack of sleep raises heart disease risk" = "concern" (LEFT).
-An article saying "short sleep has no proven harm" = "benefit" (RIGHT).
+IMPORTANT: "concern" always maps to the LEFT (red) side, "benefit" to the RIGHT (blue).
+For harm/safety topics: an article saying X IS harmful = "concern" (LEFT). An article saying X is safe = "benefit" (RIGHT).
+For benefit topics: an article saying X has no effect = "concern" (LEFT). An article saying X works = "benefit" (RIGHT).
 
 Headlines:
 ${block}
