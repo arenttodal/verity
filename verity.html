@@ -1141,6 +1141,18 @@ const mediaDots = [
 
 let showSci=true, showMed=true;
 
+function paperUrl(data) {
+  if (data.doi && data.doi.length > 4) {
+    const raw = data.doi.replace(/^doi:/i, '').trim();
+    return 'https://doi.org/' + raw;
+  }
+  if (data.pmid && String(data.pmid).length > 2) {
+    return 'https://pubmed.ncbi.nlm.nih.gov/' + data.pmid + '/';
+  }
+  const q = encodeURIComponent('"' + (data.title || '').slice(0, 80) + '"');
+  return 'https://pubmed.ncbi.nlm.nih.gov/?term=' + q;
+}
+
 function typeLabel(t) { return {meta:'Meta-analysis',rct:'RCT',cohort:'Cohort Study',obs:'Observational',media:'Media Article'}[t]||t; }
 
 // ── STRIP RENDERING ───────────────────────────────────────────────
@@ -2389,6 +2401,7 @@ function openShareCard() {
     n:  sDots.length,
     nm: mDots.length,
     da: da ? da.headline : '',
+    dax: da ? (da.explanation || '').slice(0, 300) : '',
   });
 
   window.open('/share.html?' + params.toString(), '_blank');

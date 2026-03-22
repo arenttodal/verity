@@ -282,7 +282,8 @@ const dotsRaw    = p.get('d')  || '';
 const mDotsRaw   = p.get('md') || '';
 const nStudies   = p.get('n')  || '0';
 const nMedia     = p.get('nm') || '0';
-const daHeadline = p.get('da') || '';
+const daHeadline    = p.get('da')  || '';
+const daExplanation = p.get('dax') || '';
 
 // ── Text fields ──────────────────────────────────────────────────
 document.title = 'Verity — ' + query.slice(0, 60);
@@ -320,8 +321,10 @@ const divEl = document.getElementById('divergenceNote');
 if (div >= 8) {
   const dir  = medPct > sciPct ? rightLabel : leftLabel;
   const sign = medPct > sciPct ? '+' : '-';
-  const causeHint = daHeadline
-    ? `<span style="display:block;margin-top:5px;opacity:0.65;font-style:italic;">Possible cause: ${daHeadline.toLowerCase()}.</span>`
+  // Use full explanation if available, fall back to headline
+  const causeText = daExplanation || (daHeadline ? daHeadline : '');
+  const causeHint = causeText
+    ? `<span style="display:block;margin-top:7px;font-style:italic;opacity:0.72;font-size:0.95em;">${causeText}</span>`
     : '';
   divEl.innerHTML =
     `<strong>${sign}${div}% divergence.</strong> Media coverage leans ${div} points further toward "${dir}" than the science supports.` + causeHint;
