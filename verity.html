@@ -581,27 +581,17 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
 
 /* ── LOADING SEQUENCE ── */
 .loading-state {
-  display: none; flex-direction: row; align-items: center; justify-content: center;
-  padding: clamp(40px, 8vw, 80px) 0 40px;
-  min-height: 320px; gap: 48px;
+  display: none; flex-direction: column; align-items: center;
+  padding: clamp(50px, 10vw, 90px) 0 40px;
+  min-height: 320px; gap: 0;
 }
 
 /* Steps list */
 .ls-steps {
   display: flex; flex-direction: column; gap: 0;
-  margin-bottom: 44px; width: 100%; max-width: 300px; flex-shrink: 0;
+  margin-bottom: 44px; width: 100%; max-width: 320px;
 }
 
-/* Canvas side */
-.ls-canvas-wrap {
-  flex-shrink: 0;
-  opacity: 0.72;
-  display: flex; align-items: center; justify-content: center;
-}
-#lyssCanvas {
-  border-radius: 50%;
-  display: block;
-}
 
 .ls-step {
   display: flex; align-items: center; gap: 12px;
@@ -778,11 +768,7 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
       </div>
     </div>
 
-    <div class="ls-canvas-wrap" id="lyssWrap">
-      <canvas id="lyssCanvas" width="220" height="220"></canvas>
-    </div>
-
-    <div class="ls-fact" style="display:none;">
+    <div class="ls-fact">
       <div class="ls-fact-label">While you wait</div>
       <div class="ls-fact-text" id="lsFact">Loading…</div>
     </div>
@@ -2112,131 +2098,6 @@ function populateFromData(data) {
 document.getElementById('searchInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') runSearch();
 });
-
-// ── LISSAJOUS DNA VISUALIZER ──────────────────────────────────────
-// Cymatics-inspired structure that grows with the loading steps.
-// Adapted from Lumio LyssStrings engine — silent mode (no audio).
-const Lyss = (() => {
-  let ctx, canvas, phase = 0, hue = 260, raf = null;
-  let progress = 0; // 0-1, driven by step count
-  const STEPS = 6;
-
-  function init() {
-    canvas = document.getElementById('lyssCanvas');
-    if (!canvas) return;
-    ctx = canvas.getContext('2d');
-    ctx.fillStyle = 'transparent';
-  }
-
-  function draw() {
-    if (!ctx) return;
-    const W = canvas.width, H = canvas.height;
-    const cx = W / 2, cy = H / 2;
-
-    // Fade
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = 'rgba(7,8,15,0.18)';
-    ctx.fillRect(0, 0, W, H);
-
-    // Scale: starts tiny, grows to full with progress
-    const scale = 0.28 + progress * 0.72;
-    const scX = cx * 0.88 * scale;
-    const scY = cy * 0.88 * scale;
-
-    // Complexity: grows with progress
-    const complexity = 0.2 + progress * 0.8;
-    const cycles = 1.5 + complexity * 8;
-    const pts = Math.round(200 + complexity * 600);
-
-    // A/B ratios drift for organic feel
-    const lA = 2 + Math.sin(phase * 0.07) * 0.3;
-    const lB = 3 + Math.cos(phase * 0.05) * 0.2;
-
-    phase += 0.008;
-    hue += 0.04;
-    if (hue > 310) hue = 220;
-
-    // Build points
-    const xs = [], ys = [];
-    for (let i = 0; i <= pts; i++) {
-      const t = (i / pts) * Math.PI * 2 * cycles;
-      xs.push(cx + Math.sin(lA * t + phase) * scX);
-      ys.push(cy + Math.sin(lB * t) * scY);
-    }
-
-    function drawPath() {
-      ctx.beginPath();
-      ctx.moveTo(xs[0], ys[0]);
-      for (let i = 1; i <= pts; i++) ctx.lineTo(xs[i], ys[i]);
-      ctx.stroke();
-    }
-
-    const opacity = 0.15 + progress * 0.55;
-
-    // Outer glow
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.lineWidth = 10 * scale;
-    ctx.strokeStyle = `hsla(${hue},65%,50%,${opacity * 0.18})`;
-    drawPath();
-    // Mid
-    ctx.lineWidth = 4 * scale;
-    ctx.strokeStyle = `hsla(${hue + 20},80%,65%,${opacity * 0.45})`;
-    drawPath();
-    // Core
-    ctx.lineWidth = 1.2 * scale;
-    ctx.strokeStyle = `hsla(${hue + 40},90%,82%,${opacity})`;
-    drawPath();
-
-    // Moving dot
-    const dt = phase * 0.8;
-    const dx = cx + Math.sin(lA * dt + phase) * scX;
-    const dy = cy + Math.sin(lB * dt) * scY;
-    const gr = ctx.createRadialGradient(dx, dy, 0, dx, dy, 14 * scale);
-    gr.addColorStop(0,   `rgba(200,180,255,${0.7 + progress * 0.3})`);
-    gr.addColorStop(0.4, `rgba(110,70,210,${0.35})`);
-    gr.addColorStop(1,   'rgba(50,15,130,0)');
-    ctx.fillStyle = gr;
-    ctx.beginPath();
-    ctx.arc(dx, dy, 14 * scale, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.globalCompositeOperation = 'source-over';
-    raf = requestAnimationFrame(draw);
-  }
-
-  function start() {
-    progress = 0;
-    if (ctx) { ctx.clearRect(0, 0, canvas.width, canvas.height); }
-    if (raf) cancelAnimationFrame(raf);
-    draw();
-  }
-
-  function setProgress(p) { progress = Math.min(1, Math.max(0, p)); }
-
-  function stop() {
-    if (raf) { cancelAnimationFrame(raf); raf = null; }
-  }
-
-  return { init, start, stop, setProgress };
-})();
-
-// Hook Lyss progress to setStep
-const _origSetStep = setStep;
-setStep = function(idx) {
-  _origSetStep(idx);
-  Lyss.setProgress(idx / 6);
-};
-
-// Init canvas on page load
-Lyss.init();
-
-// Override setLoading to start/stop Lyss
-const _origSetLoading = setLoading;
-setLoading = function(on, stepIdx) {
-  _origSetLoading(on, stepIdx);
-  if (on) { Lyss.start(); }
-  else     { Lyss.stop(); }
-};
 
 // ── URL SHARING ────────────────────────────────────────────────────
 function shareLink() {
