@@ -128,34 +128,7 @@ body::before {
   background: var(--orange);
   box-shadow: 0 0 0 2px rgba(195,138,62,0.25), 0 2px 6px rgba(0,0,0,0.40);
 }
-/* Media axis line (slightly below) */
-.bar-axis-media {
-  width: 100%; height: 1.5px; border-radius: 1px; margin-top: 26px;
-  background: linear-gradient(to right, rgba(184,64,64,0.30) 0%, rgba(255,255,255,0.06) 50%, rgba(59,110,170,0.30) 100%);
-  position: relative;
-}
 
-/* Row labels */
-.bar-row-labels {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-top: 6px;
-}
-.row-tag {
-  font-family: 'DM Mono', monospace; font-size: 7px; letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-.row-tag.sci { color: rgba(255,255,255,0.30); }
-.row-tag.med { color: rgba(195,138,62,0.50); }
-
-.bar-axis-labels {
-  display: flex; justify-content: space-between; margin-top: 12px;
-}
-.axis-lbl {
-  font-family: 'DM Mono', monospace; font-size: 7.5px; letter-spacing: 0.09em; text-transform: uppercase;
-}
-.axis-lbl.left  { color: rgba(184,64,64,0.55); }
-.axis-lbl.mid   { color: rgba(255,255,255,0.16); }
-.axis-lbl.right { color: rgba(59,110,170,0.55); }
 
 /* Divergence callout */
 .divergence {
@@ -235,12 +208,12 @@ body::before {
       <div class="score-row">
         <div class="score-block">
           <div class="score-value sci" id="sciScore">—%</div>
-          <div class="score-sublabel">Science</div>
+          <div class="score-sublabel"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:rgba(235,238,252,0.75);margin-right:5px;vertical-align:middle;"></span>Science</div>
         </div>
         <div class="score-sep">/</div>
         <div class="score-block">
           <div class="score-value med" id="medScore">—%</div>
-          <div class="score-sublabel">Media</div>
+          <div class="score-sublabel"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--orange);margin-right:5px;vertical-align:middle;opacity:0.85;"></span>Media</div>
         </div>
         <div style="flex:1;"></div>
         <div style="text-align:right;padding-bottom:12px;">
@@ -254,17 +227,7 @@ body::before {
           <div class="bar-pin-sci" id="sciPin"></div>
           <div class="bar-pin-med" id="medPin"></div>
         </div>
-        <div class="bar-axis-media"></div>
-        <div class="bar-row-labels" style="margin-top:-28px;">
-          <span class="row-tag sci">● Science</span>
-          <span class="row-tag med" style="position:absolute;right:0;margin-top:28px;">● Media</span>
-        </div>
-      </div>
-      <div style="height:22px;"></div>
-      <div class="bar-axis-labels">
-        <span class="axis-lbl left" id="lblLeft">Concern</span>
-        <span class="axis-lbl mid">Neutral</span>
-        <span class="axis-lbl right" id="lblRight">Benefit</span>
+
       </div>
 
       <!-- Divergence note -->
@@ -292,7 +255,7 @@ body::before {
           </div>
         </div>
       </div>
-      <svg id="shareStrip" height="90" viewBox="0 0 382 90" preserveAspectRatio="none"></svg>
+      <svg id="shareStrip" height="140" viewBox="0 0 382 140" preserveAspectRatio="none"></svg>
     </div>
 
     <!-- FOOTER -->
@@ -324,8 +287,7 @@ const nMedia     = p.get('nm') || '0';
 document.title = 'Verity — ' + query.slice(0, 60);
 document.getElementById('queryText').textContent    = query;
 document.getElementById('verdictText').textContent  = verdict || '—';
-document.getElementById('lblLeft').textContent      = '← ' + leftLabel;
-document.getElementById('lblRight').textContent     = rightLabel + ' →';
+
 document.getElementById('countLabel').textContent   =
   nStudies + ' studies · ' + nMedia + ' media';
 document.getElementById('stripLabel').textContent   =
@@ -364,9 +326,13 @@ if (div >= 8) {
 
 // ── Evidence strip (SVG) ─────────────────────────────────────────
 const svg = document.getElementById('shareStrip');
-const W = 382, H = 90;
-const sciAxisY = 38;
-const medAxisY = 66;
+const W = 382, H = 140;
+// Science axis sits at 58, ticks grow UP (max 30px → y=28, avg blade top → y=14 — clearly above)
+// Media axis sits at 102, ticks grow UP (max 12px → y=90, avg blade top → y=78)
+// Concern/Neutral/Benefit labels at y=132 (bottom of SVG)
+const sciAxisY = 58;
+const medAxisY = 102;
+const lblY     = 132;
 
 const ns = 'http://www.w3.org/2000/svg';
 
@@ -375,98 +341,107 @@ function mkEl(tag, attrs) {
   for (const [k,v] of Object.entries(attrs)) el.setAttribute(k, v);
   return el;
 }
+function svgText(text, x, y, fill, size, spacing, anchor) {
+  const t = mkEl('text', { x, y, fill,
+    'font-family':'DM Mono, monospace', 'font-size':size,
+    'letter-spacing':spacing, 'text-anchor': anchor||'start' });
+  t.textContent = text;
+  return t;
+}
 
 // Gradient defs
 const defs = mkEl('defs', {});
 function makeGrad(id, c1, c2, c3) {
   const g = mkEl('linearGradient', { id, x1:'0%', x2:'100%' });
-  const s1 = mkEl('stop', { offset:'0%',   'stop-color': c1 });
-  const s2 = mkEl('stop', { offset:'50%',  'stop-color': c2 });
-  const s3 = mkEl('stop', { offset:'100%', 'stop-color': c3 });
-  g.appendChild(s1); g.appendChild(s2); g.appendChild(s3);
+  [['0%',c1],['50%',c2],['100%',c3]].forEach(([off,col]) => {
+    const s = mkEl('stop', { offset:off, 'stop-color':col }); g.appendChild(s);
+  });
   return g;
 }
-defs.appendChild(makeGrad('axG1', 'rgba(184,64,64,0.55)', 'rgba(255,255,255,0.12)', 'rgba(59,110,170,0.55)'));
-defs.appendChild(makeGrad('axG2', 'rgba(184,64,64,0.28)', 'rgba(255,255,255,0.06)', 'rgba(59,110,170,0.28)'));
+defs.appendChild(makeGrad('axG1','rgba(184,64,64,0.55)','rgba(255,255,255,0.12)','rgba(59,110,170,0.55)'));
+defs.appendChild(makeGrad('axG2','rgba(184,64,64,0.28)','rgba(255,255,255,0.06)','rgba(59,110,170,0.28)'));
 svg.appendChild(defs);
 
-// Science axis line
-svg.appendChild(mkEl('line', { x1:0, x2:W, y1:sciAxisY, y2:sciAxisY, stroke:'url(#axG1)', 'stroke-width':'1.2' }));
+// ── Science axis ─────────────────────────────────────────────────
+svg.appendChild(mkEl('line',{x1:0,x2:W,y1:sciAxisY,y2:sciAxisY,stroke:'url(#axG1)','stroke-width':'1.2'}));
 
-// Row labels left-side
-function svgText(text, x, y, fill, size, spacing) {
-  const t = mkEl('text', { x, y, fill, 'font-family':'DM Mono, monospace', 'font-size':size, 'letter-spacing':spacing });
-  t.textContent = text;
-  return t;
-}
-svg.appendChild(svgText('SCIENCE', 0, sciAxisY - 6, 'rgba(255,255,255,0.20)', '7', '0.12em'));
+// ── Media axis ───────────────────────────────────────────────────
+svg.appendChild(mkEl('line',{x1:0,x2:W,y1:medAxisY,y2:medAxisY,stroke:'url(#axG2)','stroke-width':'1'}));
 
-// Media axis line
-svg.appendChild(mkEl('line', { x1:0, x2:W, y1:medAxisY, y2:medAxisY, stroke:'url(#axG2)', 'stroke-width':'1' }));
-svg.appendChild(svgText('MEDIA', 0, medAxisY - 6, 'rgba(195,138,62,0.45)', '7', '0.12em'));
+// ── Axis labels at bottom ────────────────────────────────────────
+svg.appendChild(svgText('← Concern',    0,       lblY, 'rgba(184,64,64,0.55)',   '7.5','0.09em','start'));
+svg.appendChild(svgText('Neutral',      W*0.5,   lblY, 'rgba(255,255,255,0.18)', '7.5','0.09em','middle'));
+svg.appendChild(svgText('Benefit →',    W,       lblY, 'rgba(59,110,170,0.55)',  '7.5','0.09em','end'));
 
 // ── Science ticks ────────────────────────────────────────────────
-const TICK_H = [0, 6, 9, 14, 20, 26];
+// Heights: weight 1→7, 2→11, 3→16, 4→22, 5→30
+const TICK_H = [0, 7, 11, 16, 22, 30];
 const SCI_COL = {
-  meta:    'rgba(235,238,252,0.84)',
-  rct:     'rgba(210,224,242,0.62)',
-  cohort:  'rgba(185,218,210,0.46)',
-  obs:     'rgba(175,178,200,0.30)',
+  meta:    'rgba(235,238,252,0.85)',
+  rct:     'rgba(210,224,242,0.63)',
+  cohort:  'rgba(185,218,210,0.47)',
+  obs:     'rgba(175,178,200,0.31)',
   unknown: 'rgba(170,174,200,0.24)',
 };
 
 const sciDots = dotsRaw
-  ? dotsRaw.split('|').map(s => { const [x,w,t] = s.split(','); return { x:parseFloat(x), w:parseInt(w)||2, t:t||'unknown'}; }).filter(d => !isNaN(d.x))
+  ? dotsRaw.split('|').map(s => { const [x,w,t] = s.split(','); return {x:parseFloat(x),w:parseInt(w)||2,t:t||'unknown'}; }).filter(d=>!isNaN(d.x))
   : [];
 
 const placed = [];
 sciDots.forEach(d => {
   let sx = Math.round(d.x * W);
-  placed.forEach(pp => { if (Math.abs(sx-pp) < 3) sx += 3; });
+  placed.forEach(pp => { if(Math.abs(sx-pp)<3) sx+=3; });
   placed.push(sx);
-  const tH = TICK_H[Math.min(5, Math.max(1, d.w))];
-  const col = SCI_COL[d.t] || SCI_COL.unknown;
-  if (d.t === 'meta') {
-    svg.appendChild(mkEl('rect', { x:sx-2, y:sciAxisY-tH, width:4, height:tH, rx:1.5, fill:col }));
+  const tH = TICK_H[Math.min(5,Math.max(1,d.w))];
+  const col = SCI_COL[d.t]||SCI_COL.unknown;
+  if (d.t==='meta') {
+    svg.appendChild(mkEl('rect',{x:sx-2,y:sciAxisY-tH,width:4,height:tH,rx:1.5,fill:col}));
   } else {
-    svg.appendChild(mkEl('line', { x1:sx, x2:sx, y1:sciAxisY-tH, y2:sciAxisY, stroke:col, 'stroke-width':'1.2' }));
+    svg.appendChild(mkEl('line',{x1:sx,x2:sx,y1:sciAxisY-tH,y2:sciAxisY,stroke:col,'stroke-width':'1.3'}));
   }
 });
 
-// Science avg blade
+// Science AVG blade — drawn AFTER ticks so it sits on top
+// Blade top at sciAxisY-44 (14px clear above tallest possible tick at -30)
 if (sciDots.length > 0) {
-  const tw = sciDots.reduce((s,d) => s+d.w, 0) || 1;
-  const ax = sciDots.reduce((s,d) => s+d.x*d.w, 0) / tw;
-  const avX = Math.round(ax * W);
-  svg.appendChild(mkEl('line', { x1:avX, x2:avX, y1:sciAxisY-20, y2:sciAxisY, stroke:'rgba(255,255,255,0.55)', 'stroke-width':'1.2' }));
-  svg.appendChild(mkEl('circle', { cx:avX, cy:sciAxisY-20, r:3, fill:'rgba(255,255,255,0.60)' }));
-  svg.appendChild(svgText('AVG', avX+5, sciAxisY-17, 'rgba(255,255,255,0.32)', '7', '0.06em'));
+  const tw = sciDots.reduce((s,d)=>s+d.w,0)||1;
+  const ax = sciDots.reduce((s,d)=>s+d.x*d.w,0)/tw;
+  const avX = Math.round(ax*W);
+  const bladeTop = sciAxisY - 44;
+  // Blade line
+  svg.appendChild(mkEl('line',{x1:avX,x2:avX,y1:bladeTop,y2:sciAxisY,stroke:'rgba(255,255,255,0.70)','stroke-width':'1.5'}));
+  // Dot at top
+  svg.appendChild(mkEl('circle',{cx:avX,cy:bladeTop,r:3.5,fill:'rgba(255,255,255,0.75)'}));
+  // Label beside dot
+  svg.appendChild(svgText('AVG',avX+6,bladeTop+4,'rgba(255,255,255,0.38)','7','0.08em'));
 }
 
 // ── Media ticks ──────────────────────────────────────────────────
 const mediaDots = mDotsRaw
-  ? mDotsRaw.split('|').map(s => { const [x,w] = s.split(','); return { x:parseFloat(x), w:parseInt(w)||2 }; }).filter(d => !isNaN(d.x))
+  ? mDotsRaw.split('|').map(s=>{ const [x,w]=s.split(','); return {x:parseFloat(x),w:parseInt(w)||2}; }).filter(d=>!isNaN(d.x))
   : [];
 
 const mPlaced = [];
 mediaDots.forEach(d => {
-  let sx = Math.round(d.x * W);
-  mPlaced.forEach(pp => { if (Math.abs(sx-pp) < 3) sx += 3; });
+  let sx = Math.round(d.x*W);
+  mPlaced.forEach(pp => { if(Math.abs(sx-pp)<3) sx+=3; });
   mPlaced.push(sx);
-  const tH = Math.round(5 + d.w * 2);
-  svg.appendChild(mkEl('line', { x1:sx, x2:sx, y1:medAxisY-tH, y2:medAxisY,
-    stroke:'rgba(195,138,62,0.55)', 'stroke-width':'1.2' }));
+  const tH = Math.min(12, 4 + d.w * 2);
+  svg.appendChild(mkEl('line',{x1:sx,x2:sx,y1:medAxisY-tH,y2:medAxisY,
+    stroke:'rgba(195,138,62,0.58)','stroke-width':'1.3'}));
 });
 
-// Media avg blade
+// Media AVG blade — top at medAxisY-22 (10px clear above tallest media tick at -12)
 if (mediaDots.length > 0) {
-  const tw = mediaDots.reduce((s,d) => s+d.w, 0) || 1;
-  const ax = mediaDots.reduce((s,d) => s+d.x*d.w, 0) / tw;
-  const avX = Math.round(ax * W);
-  svg.appendChild(mkEl('line', { x1:avX, x2:avX, y1:medAxisY-16, y2:medAxisY,
-    stroke:'rgba(195,138,62,0.65)', 'stroke-width':'1.2' }));
-  svg.appendChild(mkEl('circle', { cx:avX, cy:medAxisY-16, r:3, fill:'rgba(195,138,62,0.70)' }));
-  svg.appendChild(svgText('AVG', avX+5, medAxisY-13, 'rgba(195,138,62,0.42)', '7', '0.06em'));
+  const tw = mediaDots.reduce((s,d)=>s+d.w,0)||1;
+  const ax = mediaDots.reduce((s,d)=>s+d.x*d.w,0)/tw;
+  const avX = Math.round(ax*W);
+  const bladeTop = medAxisY - 22;
+  svg.appendChild(mkEl('line',{x1:avX,x2:avX,y1:bladeTop,y2:medAxisY,
+    stroke:'rgba(195,138,62,0.72)','stroke-width':'1.5'}));
+  svg.appendChild(mkEl('circle',{cx:avX,cy:bladeTop,r:3,fill:'rgba(195,138,62,0.78)'}));
+  svg.appendChild(svgText('AVG',avX+5,bladeTop+4,'rgba(195,138,62,0.50)','7','0.08em'));
 }
 
 // ── Back link ────────────────────────────────────────────────────
