@@ -169,6 +169,77 @@ header { display: flex; align-items: center; justify-content: space-between; pad
 /* AI */
 .ai-tag { font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.07); padding: 3px 8px; border-radius: 3px; display: inline-block; margin-bottom: 13px; }
 
+/* ── DIVERGENCE ANALYSIS CARD ── */
+.divanalysis-section { display: none; }
+.divanalysis-card {
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.018);
+  overflow: hidden;
+}
+.divanalysis-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  cursor: pointer;
+  user-select: none;
+}
+.divanalysis-header:hover { background: rgba(255,255,255,0.02); }
+.divanalysis-icon {
+  font-size: 14px; flex-shrink: 0; opacity: 0.7;
+}
+.divanalysis-title {
+  flex: 1;
+  font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.75);
+  line-height: 1.3;
+}
+.divanalysis-conf {
+  font-family: 'DM Mono', monospace; font-size: 7.5px; letter-spacing: 0.12em;
+  text-transform: uppercase; padding: 3px 8px; border-radius: 4px; border: 1px solid;
+  flex-shrink: 0;
+}
+.dconf-high     { color: rgba(80,190,120,0.80); border-color: rgba(80,190,120,0.22); background: rgba(80,190,120,0.06); }
+.dconf-moderate { color: rgba(200,175,60,0.80); border-color: rgba(200,175,60,0.22); background: rgba(200,175,60,0.06); }
+.dconf-low      { color: rgba(200,130,60,0.75); border-color: rgba(200,130,60,0.22); background: rgba(200,130,60,0.06); }
+.divanalysis-chevron {
+  font-family: 'DM Mono', monospace; font-size: 9px; color: rgba(255,255,255,0.20);
+  flex-shrink: 0; transition: transform 0.2s;
+}
+.divanalysis-card.open .divanalysis-chevron { transform: rotate(90deg); }
+.divanalysis-body {
+  padding: 16px 18px; display: none;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+.divanalysis-card.open .divanalysis-body { display: block; }
+.divanalysis-explain {
+  font-size: 13px; line-height: 1.75; color: rgba(255,255,255,0.60);
+  font-weight: 300; margin-bottom: 14px;
+}
+.divanalysis-signals {
+  display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px;
+}
+.divanalysis-signal {
+  display: flex; align-items: flex-start; gap: 8px;
+  font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.38); line-height: 1.6;
+}
+.divanalysis-signal::before { content: '→'; flex-shrink: 0; color: rgba(255,255,255,0.18); margin-top: 1px; }
+.divanalysis-caveat {
+  font-size: 11px; line-height: 1.65; color: rgba(255,255,255,0.28);
+  font-style: italic; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+/* Category icon colours */
+.dcat-novelty    { color: rgba(78,152,200,0.80); }
+.dcat-mismatch   { color: rgba(200,175,60,0.80); }
+.dcat-industry   { color: rgba(200,80,80,0.80); }
+.dcat-outlet     { color: rgba(175,178,200,0.70); }
+.dcat-alarm      { color: rgba(200,80,80,0.80); }
+.dcat-wellness   { color: rgba(80,190,120,0.75); }
+.dcat-publication{ color: rgba(175,178,200,0.70); }
+.dcat-genuine    { color: rgba(200,175,60,0.80); }
+.dcat-press      { color: rgba(195,138,62,0.80); }
+
 /* ── SHARE BAR ── */
 .share-bar {
   display: none; align-items: center; gap: 8px;
@@ -901,6 +972,28 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
     </div>
   </div>
   <canvas id="shareCanvas"></canvas>
+
+  <!-- ══ 2b. DIVERGENCE ANALYSIS ══ -->
+  <div class="section divanalysis-section" id="divanalysisSection">
+    <div class="section-head">
+      <div class="section-title">Why the gap?</div>
+    </div>
+    <div class="section-body">
+      <div class="divanalysis-card" id="divanalysisCard">
+        <div class="divanalysis-header" onclick="toggleDivAnalysis()">
+          <div class="divanalysis-icon" id="divanalysisIcon">⚡</div>
+          <div class="divanalysis-title" id="divanalysisTitle">—</div>
+          <div class="divanalysis-conf" id="divanalysisConf"></div>
+          <div class="divanalysis-chevron">▶</div>
+        </div>
+        <div class="divanalysis-body">
+          <p class="divanalysis-explain" id="divanalysisExplain"></p>
+          <div class="divanalysis-signals" id="divanalysisSignals"></div>
+          <p class="divanalysis-caveat" id="divanalysisCaveat"></p>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ══ 3. EVIDENCE STRIP ══ -->
   <div class="section">
@@ -1793,6 +1886,7 @@ function resetToHero() {
   document.getElementById('errorState').style.display    = 'none';
   document.getElementById('resultsSections').style.display = 'none';
   document.getElementById('shareBar').style.display = 'none';
+  document.getElementById('divanalysisSection').style.display = 'none';
   document.getElementById('hero').classList.remove('compact');
   document.documentElement.classList.add('hero-state');
   document.getElementById('searchInput').focus();
@@ -2010,6 +2104,49 @@ function populateFromData(data) {
     window._mediaDots = mediaDots;
   }
 
+  // ── Divergence Analysis ──────────────────────────────────────────
+  const da = data.divergenceAnalysis;
+  const daSection = document.getElementById('divanalysisSection');
+
+  if (da && da.headline) {
+    const ICONS = {
+      novelty_bias:            ['🔬', 'dcat-novelty'],
+      design_mismatch:         ['📊', 'dcat-mismatch'],
+      industry_signal:         ['💰', 'dcat-industry'],
+      outlet_quality:          ['📰', 'dcat-outlet'],
+      alarm_amplification:     ['🚨', 'dcat-alarm'],
+      wellness_hype:           ['✨', 'dcat-wellness'],
+      publication_bias_echo:   ['📈', 'dcat-publication'],
+      genuine_uncertainty:     ['⚖️',  'dcat-genuine'],
+      press_release_amplification: ['📢', 'dcat-press'],
+    };
+    const [icon, colorClass] = ICONS[da.category] || ['⚡', ''];
+
+    document.getElementById('divanalysisIcon').textContent = icon;
+    document.getElementById('divanalysisIcon').className   = 'divanalysis-icon ' + colorClass;
+    document.getElementById('divanalysisTitle').textContent = da.headline;
+
+    const confEl = document.getElementById('divanalysisConf');
+    confEl.textContent  = da.confidence + ' confidence';
+    confEl.className    = 'divanalysis-conf dconf-' + da.confidence;
+
+    document.getElementById('divanalysisExplain').textContent  = da.explanation;
+    document.getElementById('divanalysisCaveat').textContent   = da.caveat;
+
+    const sigContainer = document.getElementById('divanalysisSignals');
+    sigContainer.innerHTML = '';
+    (da.signals || []).slice(0, 4).forEach(sig => {
+      const d = document.createElement('div');
+      d.className   = 'divanalysis-signal';
+      d.textContent = sig;
+      sigContainer.appendChild(d);
+    });
+
+    daSection.style.display = 'block';
+  } else {
+    daSection.style.display = 'none';
+  }
+
   // Ensure synthesis text renders with proper paragraph breaks
   let summaryHtml = analysis.summary || '—';
   // If it's plain paragraphs separated by double newlines or <br><br>, wrap in <p> tags
@@ -2114,6 +2251,11 @@ document.getElementById('searchInput').addEventListener('keydown', e => {
 });
 
 // ── URL SHARING ────────────────────────────────────────────────────
+function toggleDivAnalysis() {
+  const card = document.getElementById('divanalysisCard');
+  card.classList.toggle('open');
+}
+
 function shareLink() {
   const query = document.getElementById('searchInput').value.trim();
   if (!query) return;

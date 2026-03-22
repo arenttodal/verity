@@ -1319,6 +1319,143 @@ Return ONLY:
 }
 
 // ─────────────────────────────────────────────────────────────────
+//  STEP 8 — Divergence attribution
+//
+//  When media and science point in meaningfully different directions,
+//  we identify the most plausible reason using a combination of:
+//    a) Deterministic signal checks (funding, design, outlet quality)
+//    b) Claude's reading of media title language patterns
+//
+//  We never claim to have PROVEN the cause. Every output is framed
+//  as "consistent with" or "suggests" — not "caused by".
+//
+//  Categories (from peer-reviewed science communication taxonomy):
+//    novelty_bias          — media prefers new/surprising findings over confirmatory ones
+//    design_mismatch       — science is observational but media uses causal language
+//    industry_signal       — funding concerns present; direction aligns with funder interest
+//    outlet_quality        — low-credibility outlets dominate media set
+//    alarm_amplification   — media far more alarming than science supports
+//    wellness_hype         — media far more optimistic than science supports
+//    publication_bias_echo — both lean same direction; positive-result skew worth naming
+//    genuine_uncertainty   — contradiction is high; media divergence may reflect real debate
+//    insufficient_data     — too little media to draw conclusions
+// ─────────────────────────────────────────────────────────────────
+
+async function analyzeDivergence(frame, papers, scoring, mediaArticles, mediaAnalysis) {
+  const sciPct  = scoring.rightPct;
+  const medPct  = mediaAnalysis.rightPct ?? 50;
+  const divAmt  = Math.abs(sciPct - medPct);
+  const divDir  = medPct > sciPct ? 'right' : 'left'; // which way media leans vs science
+
+  // Not worth analysing if divergence is small or media is sparse
+  if (divAmt < 10 || !mediaArticles || mediaArticles.length < 3) {
+    return null;
+  }
+
+  // ── Deterministic signals ────────────────────────────────────────
+
+  // 1. Funding concern: any industry-funded papers?
+  const fundingFlags = papers.filter(p => p.extractedOutcomes ? false :
+    (p.abstract || '').toLowerCase().match(/funded by|supported by|grant from|sponsored by/)
+  ).length;
+  const hasFundingConcern = fundingFlags > 0 ||
+    papers.some(p => p.fundingConcern);
+
+  // 2. Design quality: what fraction are observational only?
+  const total  = papers.length || 1;
+  const highQ  = papers.filter(p => ['umbrella','meta','rct'].includes(p.design)).length;
+  const obsOnly = highQ / total < 0.15; // fewer than 15% are high-quality designs
+
+  // 3. Outlet quality: average domain weight of media articles
+  const avgOutletWeight = mediaArticles.length > 0
+    ? mediaArticles.reduce((s, a) => s + (a.weight || 2), 0) / mediaArticles.length
+    : 2;
+  const lowQualityOutlets = avgOutletWeight < 2.4;
+
+  // 4. Contradiction: is the science itself genuinely divided?
+  const genuinelyDivided = scoring.contradiction > 0.30;
+
+  // 5. Direction of divergence relative to topic type
+  const mediaMoreOptimistic = medPct > sciPct;
+  const mediaMoreAlarming   = medPct < sciPct;
+
+  // Build signal list for Claude
+  const signals = [
+    hasFundingConcern ? `Industry funding detected in ${fundingFlags || 'some'} papers` : null,
+    obsOnly ? `Science is predominantly observational (${Math.round((1-highQ/total)*100)}% non-RCT/meta)` : null,
+    lowQualityOutlets ? `Media set has lower average outlet credibility (avg weight ${avgOutletWeight.toFixed(1)}/4)` : null,
+    genuinelyDivided ? `Science itself is genuinely divided (contradiction index ${scoring.contradiction.toFixed(2)})` : null,
+    `Divergence direction: media leans ${divDir === 'right' ? 'more beneficial/positive' : 'more alarming/negative'} than science by ${divAmt} points`,
+    `Science: ${highQ} high-quality studies (meta/RCT) out of ${total} total`,
+    `Topic domain: ${frame.domain}`,
+  ].filter(Boolean);
+
+  // Get media titles for language analysis
+  const titleBlock = mediaArticles.slice(0, 12)
+    .map((a, i) => `[${i}] "${a.title}"`)
+    .join('\n');
+
+  const msg = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 500,
+    system: 'You are a science communication researcher analysing why media coverage diverges from scientific evidence. Respond ONLY with valid JSON. Be intellectually honest — name patterns, not conclusions. Use hedged language.',
+    messages: [{
+      role: 'user',
+      content: `Topic: "${frame.plain}"
+Science consensus: ${sciPct}% toward "${frame.rightClaim}"
+Media framing: ${medPct}% toward "${frame.rightClaim}"
+Divergence: ${divAmt} points (media is ${divDir === 'right' ? 'more optimistic' : 'more alarming'})
+
+Detected signals:
+${signals.join('\n')}
+
+Media article titles:
+${titleBlock}
+
+Based on the signals and title language, what is the most plausible explanation for this divergence?
+
+Choose the PRIMARY category from:
+- novelty_bias: media favours novel/surprising single studies over accumulated confirmatory evidence
+- design_mismatch: observational science but media titles imply causation ("causes", "proves", "prevents")  
+- industry_signal: funding concerns; media amplifying commercially-favourable findings
+- outlet_quality: lower-credibility outlets driving the divergence
+- alarm_amplification: media significantly more alarming than evidence supports
+- wellness_hype: media significantly more optimistic/beneficial than evidence supports
+- publication_bias_echo: science AND media both lean same direction due to positive-result publication bias
+- genuine_uncertainty: science is divided; media divergence may reflect real ongoing debate
+- press_release_amplification: language suggests institutional PR spin ("breakthrough", "first ever", "could")
+
+Return ONLY:
+{
+  "category": "<primary category from list above>",
+  "confidence": "<low|moderate|high>",
+  "headline": "<8-12 word plain English label, e.g. 'Media amplifying optimism beyond what evidence supports'>",
+  "explanation": "<2-3 sentences. Use 'consistent with', 'suggests', 'may reflect' — never 'proves' or 'shows'. Explain the specific pattern detected. Reference the signals.>",
+  "caveat": "<1 sentence honest limitation of this inference>",
+  "signals": ["<specific signal 1>", "<specific signal 2>"]
+}`
+    }]
+  });
+
+  try {
+    const parsed = JSON.parse(msg.content[0].text.replace(/^```json\s*/,'').replace(/\s*```$/,'').trim());
+    return {
+      category:    parsed.category    || 'unknown',
+      confidence:  parsed.confidence  || 'low',
+      headline:    parsed.headline    || 'Divergence detected',
+      explanation: parsed.explanation || '',
+      caveat:      parsed.caveat      || '',
+      signals:     parsed.signals     || signals,
+      divAmt,
+      divDir,
+    };
+  } catch (e) {
+    console.warn('  Divergence analysis parse failed:', e.message);
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
 //  MAIN ENDPOINT
 // ─────────────────────────────────────────────────────────────────
 app.post('/api/search', async (req, res) => {
@@ -1440,13 +1577,15 @@ app.post('/api/search', async (req, res) => {
     const scoring = computeConsensus(extractions);
     console.log(`  Score: ${scoring.score}/100 | Certainty: ${scoring.certainty} | Contradiction: ${scoring.contradiction} | n=${scoring.evidenceCount}`);
 
-    // ── 6. Synthesis + verdict in parallel ───────────────────────
+    // ── 6. Synthesis + verdict + divergence analysis in parallel ──
     console.log('  Synthesizing...');
-    const [summary, verdict] = await Promise.all([
+    const [summary, verdict, divergenceAnalysis] = await Promise.all([
       synthesize(frame, papers, scoring),
       generateVerdict(frame, scoring),
+      analyzeDivergence(frame, papers, scoring, rawMedia, mediaAnalysis),
     ]);
     console.log(`  Verdict: "${verdict.slice(0, 80)}..."`);
+    if (divergenceAnalysis) console.log(`  Divergence: ${divergenceAnalysis.category} (${divergenceAnalysis.confidence})`);
 
     // ── 7. Build stance list for frontend strip ───────────────────
     const stances = extractions.map(ex => {
@@ -1510,6 +1649,7 @@ app.post('/api/search', async (req, res) => {
         rightPct:   mediaAnalysis.rightPct ?? 50,
         divergence: Math.round(mediaDivergence),
       },
+      divergenceAnalysis,
       meta: {
         paperCount:    papers.length,
         sourceCounts,
