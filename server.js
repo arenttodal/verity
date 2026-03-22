@@ -1287,7 +1287,30 @@ async function analyzeMedia(plain, articles, frame) {
     system: 'Media framing analyst. Respond ONLY with valid JSON.',
     messages: [{
       role: 'user',
-      content: `Topic: "${plain}"\nConcern framing: "${frame.leftClaim}" | Benefit framing: "${frame.rightClaim}"\n\nAnalyze how each headline frames the science. Headlines from major news outlets:\n${block}\n\nReturn ONLY:\n{\n  "stances": [{"index":<n>,"stance":"<pro|con|neutral>","framing":"<one sentence: specific angle this headline takes>","weight":<1-4>}],\n  "leftPct":<0-100, weighted % leaning concern/skeptical>,\n  "rightPct":<0-100, sums to 100>\n}`
+      content: `Topic: "${plain}"
+
+The spectrum has two sides:
+LEFT (concern) side = "${frame.leftClaim}"
+RIGHT (benefit) side = "${frame.rightClaim}"
+
+For each headline, decide which SIDE OF THE SPECTRUM it supports:
+- "concern" = article frames the topic as risky, harmful, or supports the concern/skeptical position (LEFT side)
+- "benefit" = article frames the topic as safe, beneficial, or positive (RIGHT side)
+- "neutral" = balanced or neither
+
+IMPORTANT: "concern" always maps to the LEFT side of the spectrum, "benefit" to the RIGHT.
+Example: for sleep deprivation, an article saying "lack of sleep raises heart disease risk" = "concern" (LEFT).
+An article saying "short sleep has no proven harm" = "benefit" (RIGHT).
+
+Headlines:
+${block}
+
+Return ONLY:
+{
+  "stances": [{"index":<n>,"stance":"<concern|benefit|neutral>","framing":"<one sentence>","weight":<1-4>}],
+  "leftPct":<0-100, weighted % of articles on concern/left side>,
+  "rightPct":<0-100, must sum to 100>
+}`
     }]
   });
   const p = parseJSON(msg.content[0].text);
