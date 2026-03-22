@@ -1726,7 +1726,7 @@ function startFacts() {
       el.textContent = SCIENCE_FACTS[_factIdx];
       el.classList.remove('fading');
     }, 500);
-  }, 5000);
+  }, 7000);
 }
 
 function stopFacts() {
@@ -1841,6 +1841,13 @@ async function runSearch() {
       medPct: data.mediaAnalysis?.rightPct,
       certainty: data.meta?.certainty,
     });
+
+    // Update URL to reflect this search — prevents stale ?q= from autoloading
+    // old query if the page is navigated back to or partially reloaded
+    const newUrl = window.location.pathname + '?q=' + encodeURIComponent(query);
+    if (window.location.search !== '?q=' + encodeURIComponent(query)) {
+      history.pushState({ q: query }, '', newUrl);
+    }
 
     setLoading(false);
     populateFromData(data);
@@ -2162,14 +2169,33 @@ function openShareCard() {
   window.open('/share.html?' + params.toString(), '_blank');
 }
 
-// ── AUTO-LOAD FROM URL PARAM ───────────────────────────────────────
-(function() {
-  const q = new URLSearchParams(window.location.search).get('q');
-  if (q) { const inp = document.getElementById('searchInput'); if (inp) { inp.value = decodeURIComponent(q); setTimeout(runSearch, 200); } }
-})();
-
 // Lock scroll on initial hero state — re-enabled when results or error appear
 document.documentElement.classList.add('hero-state');
+
+// ── AUTO-LOAD FROM URL PARAM ───────────────────────────────────────
+// Runs AFTER hero-state is set so the loading sequence displays correctly.
+// Also handles popstate so browser back/forward reloads the right query.
+(function() {
+  function autoLoad() {
+    const q = new URLSearchParams(window.location.search).get('q');
+    if (q) {
+      const inp = document.getElementById('searchInput');
+      if (inp) {
+        inp.value = decodeURIComponent(q);
+        // Small delay so fonts and layout are ready
+        setTimeout(runSearch, 150);
+      }
+    }
+  }
+
+  autoLoad();
+
+  // When the user navigates back/forward through search history,
+  // reload the query that matches the URL they land on
+  window.addEventListener('popstate', () => {
+    autoLoad();
+  });
+})();
 
 // ── ROTATING HERO TAGLINE ─────────────────────────────────────────
 const HERO_LINES = [
