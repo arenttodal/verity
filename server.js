@@ -269,6 +269,8 @@ Return ONLY this JSON:
   },
 
   "gdeltQuery":    "<2-4 word news query>",
+  "mediaSubjectTerms": ["<the specific subject word that MUST appear in any relevant article title — same logic as requiredTerms>"],
+  "mediaOutcomeTerms": ["<outcome word 1 that should appear>", "<outcome word 2>", "<outcome word 3>"],
   "isDebatable":   <true if real scientific debate, false if near-consensus>,
   "leftClaim":     "<3-6 words: the skeptical/concern/null/harmful position>",
   "leftDesc":      "<8-12 words describing it>",
@@ -276,6 +278,24 @@ Return ONLY this JSON:
   "rightDesc":     "<8-12 words describing it>",
   "domain":        "<nutrition|pharmacology|exercise_science|mental_health|environmental|clinical|other>"
 }
+
+CRITICAL RULES FOR mediaSubjectTerms and mediaOutcomeTerms:
+mediaSubjectTerms: the specific subject word(s) that MUST appear in any relevant article title.
+This is a HARD GATE — articles without these words are rejected regardless of how credible the outlet is.
+Examples:
+- "pet ownership mental health" → mediaSubjectTerms: ["pet", "pets", "animal", "dog", "cat"]
+- "creatine muscle" → mediaSubjectTerms: ["creatine"]
+- "vegan diet" → mediaSubjectTerms: ["vegan", "plant-based", "plant based"]
+- "intermittent fasting" → mediaSubjectTerms: ["fasting", "intermittent"]
+
+mediaOutcomeTerms: words related to the OUTCOME being studied (not the subject).
+At least one MUST also appear in the article title or snippet.
+This prevents articles about the subject that have nothing to do with the research question.
+Examples:
+- "pet ownership mental health" → mediaOutcomeTerms: ["mental health", "depression", "anxiety", "wellbeing", "well-being", "loneliness", "therapy", "stress", "mood", "psychological"]
+- "creatine muscle" → mediaOutcomeTerms: ["muscle", "strength", "performance", "exercise", "hypertrophy", "athletic"]
+- "red meat cancer" → mediaOutcomeTerms: ["cancer", "tumor", "colorectal", "carcinoma", "mortality", "risk"]
+- "coffee mortality" → mediaOutcomeTerms: ["mortality", "death", "lifespan", "longevity", "cardiovascular", "heart"]
 
 CRITICAL RULES FOR requiredTerms and synonyms:
 requiredTerms must be the SPECIFIC IDENTIFYING WORD(S) for the intervention/topic.
@@ -888,13 +908,64 @@ function domainWeight(url) {
   return 2;
 }
 
-// Score an article's relevance to required terms (0-1)
-function relevanceScore(title, snippet, requiredTerms, synonyms) {
+// Hard dual-gate relevance check for media articles.
+// An article MUST pass BOTH gates to be included:
+//   Gate 1: At least one mediaSubjectTerm appears in title (e.g. "pet", "pets", "dog")
+//   Gate 2: At least one mediaOutcomeTerms appears in title or snippet (e.g. "mental health", "depression")
+//
+// This prevents "UK veterinary reforms" from appearing in a pet-mental-health search
+// because it contains "pet" but has nothing to do with mental health outcomes.
+function articlePassesDualGate(title, snippet, frame) {
+  const text    = ((title || '') + ' ' + (snippet || '')).toLowerCase();
+  const titleLo = (title || '').toLowerCase();
+
+  // Gate 1: subject terms — must appear in TITLE specifically (not just snippet)
+  const subjectTerms = [
+    ...(frame.mediaSubjectTerms || []),
+    ...(frame.requiredTerms    || []),
+    ...(frame.synonyms         || []).slice(0, 4),
+  ].map(t => t.toLowerCase()).filter(t => t.length > 2);
+
+  const subjectPasses = subjectTerms.length === 0 ||
+    subjectTerms.some(t => titleLo.includes(t));
+
+  if (!subjectPasses) return { passes: false, reason: 'no subject term in title' };
+
+  // Gate 2: outcome terms — must appear in title or snippet
+  const outcomeTerms = (frame.mediaOutcomeTerms || []).map(t => t.toLowerCase());
+
+  // If no outcome terms were generated, fall back to outcomes array
+  const fallbackOutcomes = (frame.outcomes || [])
+    .flatMap(o => o.toLowerCase().split(/\s+/))
+    .filter(w => w.length > 4);
+
+  const allOutcome = [...new Set([...outcomeTerms, ...fallbackOutcomes])];
+
+  const outcomePasses = allOutcome.length === 0 ||
+    allOutcome.some(t => text.includes(t));
+
+  if (!outcomePasses) return { passes: false, reason: 'no outcome term' };
+
+  return { passes: true, reason: 'ok' };
+}
+
+// Relevance score for ranking (used AFTER both gates pass)
+function relevanceScore(title, snippet, frame) {
   const text = ((title || '') + ' ' + (snippet || '')).toLowerCase();
-  const allTerms = [...(requiredTerms || []), ...(synonyms || [])].map(t => t.toLowerCase());
-  if (allTerms.length === 0) return 0.5;
-  const matches = allTerms.filter(t => text.includes(t)).length;
-  return Math.min(1, matches / Math.max(1, allTerms.length) * 2);
+
+  const subjectTerms  = [...(frame.mediaSubjectTerms || []), ...(frame.requiredTerms || []), ...(frame.synonyms || []).slice(0, 3)].map(t => t.toLowerCase());
+  const outcomeTerms  = (frame.mediaOutcomeTerms || frame.outcomes || []).map(t => t.toLowerCase ? t.toLowerCase() : t);
+
+  let score = 0;
+  // Subject match in title = high value
+  subjectTerms.forEach(t => { if ((title || '').toLowerCase().includes(t)) score += 0.4; });
+  // Outcome match in title = high value
+  outcomeTerms.forEach(t => { if ((title || '').toLowerCase().includes(t)) score += 0.35; });
+  // Either in snippet = lower value
+  subjectTerms.forEach(t => { if ((snippet || '').toLowerCase().includes(t)) score += 0.1; });
+  outcomeTerms.forEach(t => { if ((snippet || '').toLowerCase().includes(t)) score += 0.1; });
+
+  return Math.min(1, score);
 }
 
 // ── SOURCE 1: The Guardian Open Platform ─────────────────────────
@@ -1039,22 +1110,33 @@ async function fetchBingNewsDateRange(searchQuery, fromYear) {
   return items;
 }
 
-// ── RANKING: score + select best articles ────────────────────────
+// ── RANKING: dual-gate filter + score + select best articles ─────
 function rankAndSelect(articles, frame, maxCount = 15) {
-  const required = frame.requiredTerms || [];
-  const synonyms = frame.synonyms      || [];
   const fromYear = new Date().getFullYear() - 5;
 
-  return articles
+  const gateResults = { passed: 0, failedSubject: 0, failedOutcome: 0 };
+
+  const filtered = articles
     .filter(a => a.title && a.title.length > 15)
-    .filter(a => a.year >= fromYear) // enforce 5-year window
+    .filter(a => a.year >= fromYear)
+    .filter(a => {
+      const { passes, reason } = articlePassesDualGate(a.title, a.snippet, frame);
+      if (!passes) {
+        if (reason === 'no subject term in title') gateResults.failedSubject++;
+        else gateResults.failedOutcome++;
+      } else gateResults.passed++;
+      return passes;
+    });
+
+  console.log(`  Media gate: ${gateResults.passed} passed | ${gateResults.failedSubject} failed subject | ${gateResults.failedOutcome} failed outcome (of ${articles.length} total)`);
+
+  return filtered
     .map(a => {
-      const rel     = relevanceScore(a.title, a.snippet, required, synonyms);
+      const rel     = relevanceScore(a.title, a.snippet, frame);
       const recency = Math.max(0, 1 - (new Date().getFullYear() - a.year) / 6);
-      const score   = a.weight * rel * 0.65 + a.weight * 0.2 + recency * 0.15;
+      const score   = a.weight * rel * 0.60 + a.weight * 0.25 + recency * 0.15;
       return { ...a, _score: score, _rel: rel };
     })
-    .filter(a => a._rel > 0) // must have keyword match
     .sort((a, b) => b._score - a._score)
     .slice(0, maxCount);
 }
