@@ -305,6 +305,8 @@ const nStudies   = p.get('n')  || '0';
 const nMedia     = p.get('nm') || '0';
 const daHeadline    = p.get('da')  || '';
 const daExplanation = p.get('dax') || '';
+const axisLeft      = p.get('al')  || 'no effect';
+const axisRight     = p.get('ar')  || 'beneficial';
 
 // ── Text fields ──────────────────────────────────────────────────
 document.title = 'Verity — ' + query.slice(0, 60);
@@ -338,7 +340,9 @@ else                                               pill.className = 'cert-pill c
 const div = Math.abs(sciPct - medPct);
 const divEl = document.getElementById('divergenceNote');
 if (div >= 8) {
-  const dir  = medPct > sciPct ? rightLabel : leftLabel;
+  const dir  = medPct > sciPct
+    ? (axisRight.charAt(0).toUpperCase() + axisRight.slice(1))
+    : (axisLeft.charAt(0).toUpperCase()  + axisLeft.slice(1));
   const sign = medPct > sciPct ? '+' : '-';
   // Merge divergence statement with first sentence of explanation into one line
   const firstSentence = (daExplanation || '').split(/(?<=[.!?])\s/)[0] || '';

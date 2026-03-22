@@ -272,12 +272,29 @@ Return ONLY this JSON:
   "mediaSubjectTerms": ["<the specific subject word that MUST appear in any relevant article title — same logic as requiredTerms>"],
   "mediaOutcomeTerms": ["<outcome word 1 that should appear>", "<outcome word 2>", "<outcome word 3>"],
   "isDebatable":   <true if real scientific debate, false if near-consensus>,
-  "leftClaim":     "<3-6 words: the skeptical/concern/null/harmful position>",
+  "leftClaim":     "<3-6 words: the null/skeptical position — always the position that the effect does NOT exist>",
   "leftDesc":      "<8-12 words describing it>",
-  "rightClaim":    "<3-6 words: the beneficial/positive/effective position>",
+  "rightClaim":    "<3-6 words: the position that the primary effect DOES exist — regardless of whether it is good or bad>",
   "rightDesc":     "<8-12 words describing it>",
+  "axisLeftLabel": "<1-2 words for the left end of the axis — e.g. 'No effect', 'Safe', 'No benefit', 'No risk'>",
+  "axisRightLabel":"<1-2 words for the right end of the axis — e.g. 'Beneficial', 'Harmful', 'Effective', 'Risky', 'Increases risk'>",
   "domain":        "<nutrition|pharmacology|exercise_science|mental_health|environmental|clinical|other>"
 }
+
+CRITICAL RULES FOR axisLeftLabel and axisRightLabel:
+The axis labels must describe what each END of the spectrum means for THIS specific question.
+- If the question is about something BENEFICIAL (e.g. does exercise improve health): axisRightLabel = "Beneficial"
+- If the question is about something HARMFUL (e.g. does X cause disease/risk/harm): axisRightLabel = "Harmful" or "Increases risk"
+- If the question is about safety (e.g. is X safe): axisLeftLabel = "Unsafe", axisRightLabel = "Safe"
+- axisLeftLabel is always the ABSENCE or OPPOSITE of the right side
+Examples:
+- "does coffee reduce mortality" → axisLeftLabel: "No effect", axisRightLabel: "Reduces mortality"
+- "does ultraprocessed food cause disease" → axisLeftLabel: "No harm", axisRightLabel: "Increases risk"
+- "does creatine improve muscle" → axisLeftLabel: "No effect", axisRightLabel: "Effective"
+- "does smoking cause cancer" → axisLeftLabel: "No link", axisRightLabel: "Causes cancer"
+- "is a vegan diet healthy" → axisLeftLabel: "Not healthier", axisRightLabel: "Beneficial"
+- "do psychedelics help depression" → axisLeftLabel: "No benefit", axisRightLabel: "Effective"
+
 
 CRITICAL RULES FOR mediaSubjectTerms and mediaOutcomeTerms:
 mediaSubjectTerms: the specific subject word(s) that MUST appear in any relevant article title.
@@ -1460,27 +1477,32 @@ ${signals.join('\n')}
 Media article titles:
 ${titleBlock}
 
-Based on the signals and title language, what is the most plausible explanation for this divergence?
+Explain WHY the media framing diverges from the science. Be a sharp analyst, not a textbook.
 
-Choose the PRIMARY category from:
+REQUIRED: Name 1-2 specific article titles from above that best illustrate the divergence pattern.
+REQUIRED: Mention the actual science consensus percentage to anchor what the evidence shows.
+FORBIDDEN: Do not open with "This is consistent with", "The divergence suggests", or any generic framing language.
+FORBIDDEN: Do not just name the bias category — explain what is actually happening with THIS specific topic.
+
+Choose the PRIMARY category:
 - novelty_bias: media favours novel/surprising single studies over accumulated confirmatory evidence
-- design_mismatch: observational science but media titles imply causation ("causes", "proves", "prevents")  
+- design_mismatch: observational science but media titles imply causation
 - industry_signal: funding concerns; media amplifying commercially-favourable findings
 - outlet_quality: lower-credibility outlets driving the divergence
 - alarm_amplification: media significantly more alarming than evidence supports
 - wellness_hype: media significantly more optimistic/beneficial than evidence supports
-- publication_bias_echo: science AND media both lean same direction due to positive-result publication bias
+- publication_bias_echo: science AND media both lean same direction; positive-result skew worth naming
 - genuine_uncertainty: science is divided; media divergence may reflect real ongoing debate
-- press_release_amplification: language suggests institutional PR spin ("breakthrough", "first ever", "could")
+- press_release_amplification: PR spin language ("breakthrough", "first ever", "could revolutionize")
 
 Return ONLY:
 {
-  "category": "<primary category from list above>",
+  "category": "<category>",
   "confidence": "<low|moderate|high>",
-  "headline": "<8-12 word plain English label, e.g. 'Media amplifying optimism beyond what evidence supports'>",
-  "explanation": "<2-3 sentences. Use 'consistent with', 'suggests', 'may reflect' — never 'proves' or 'shows'. Explain the specific pattern detected. Reference the signals.>",
-  "caveat": "<1 sentence honest limitation of this inference>",
-  "signals": ["<specific signal 1>", "<specific signal 2>"]
+  "headline": "<10-14 words: a sharp specific label that names what's actually happening, e.g. 'Media amplifying contrarian HIIT narratives despite 99% scientific consensus'>",
+  "explanation": "<2-3 sentences. Lead with what the specific titles reveal. Quote or paraphrase 1-2 actual titles. Connect directly to the ${divAmt}-point gap. Be sharp and specific — a reader should learn something they couldn't infer themselves.>",
+  "caveat": "<1 honest sentence about limits of this inference>",
+  "signals": ["<specific observable signal from the data>", "<another specific signal>"]
 }`
     }]
   });
@@ -1664,10 +1686,12 @@ app.post('/api/search', async (req, res) => {
     const result = {
       queryMeta: {
         plain:       frame.plain,
-        leftSide:    frame.leftClaim,
-        leftDesc:    frame.leftDesc,
-        rightSide:   frame.rightClaim,
-        rightDesc:   frame.rightDesc,
+        leftSide:      frame.leftClaim,
+        leftDesc:      frame.leftDesc,
+        rightSide:     frame.rightClaim,
+        rightDesc:     frame.rightDesc,
+        axisLeftLabel: frame.axisLeftLabel  || 'No effect',
+        axisRightLabel:frame.axisRightLabel || 'Beneficial',
         isDebatable: frame.isDebatable,
         domain:      frame.domain,
       },
@@ -1680,6 +1704,8 @@ app.post('/api/search', async (req, res) => {
           leftDesc:           frame.leftDesc,
           rightLabel:         frame.rightClaim,
           rightDesc:          frame.rightDesc,
+          axisLeftLabel:      frame.axisLeftLabel  || 'No effect',
+          axisRightLabel:     frame.axisRightLabel || 'Beneficial',
           leftPct:            scoring.leftPct,
           rightPct:           scoring.rightPct,
           isDebated:          frame.isDebatable,

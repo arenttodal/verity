@@ -1007,9 +1007,9 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
 
       <!-- Axis labels -->
       <div class="axis-labels">
-        <span class="axis-lbl">← Concern</span>
+        <span class="axis-lbl" id="axisLblLeft">← Concern</span>
         <span class="axis-lbl-c">Neutral</span>
-        <span class="axis-lbl">Beneficial →</span>
+        <span class="axis-lbl" id="axisLblRight">Beneficial →</span>
       </div>
       <div style="display:flex;justify-content:center;gap:14px;margin-top:7px;">
         <span style="display:flex;align-items:center;gap:4px;font-family:'DM Mono',monospace;font-size:7.5px;letter-spacing:0.09em;color:rgba(255,255,255,0.28);text-transform:uppercase;">
@@ -2180,13 +2180,27 @@ function populateFromData(data) {
   el('.spec-side-r .spec-name').textContent = d.rightLabel || queryMeta.rightSide || '—';
   el('.spec-side-r .spec-desc').textContent = d.rightDesc  || queryMeta.rightDesc || '';
 
+  // Axis labels — from frameQuery, topic-specific (e.g. "Harmful" not "Beneficial" for risk topics)
+  const axisR = (d.axisRightLabel || queryMeta.axisRightLabel || 'Beneficial').toLowerCase();
+  const axisL = (d.axisLeftLabel  || queryMeta.axisLeftLabel  || 'No effect').toLowerCase();
+
+  // Store globally for share card and divergence bar
+  window._axisRightLabel = axisR;
+  window._axisLeftLabel  = axisL;
+
   // Science pct row
-  el('.pct-row.science .pct-l').textContent = `${d.leftPct ?? '—'}% concern`;
-  el('.pct-row.science .pct-r').textContent = `${d.rightPct ?? '—'}% beneficial`;
+  el('.pct-row.science .pct-l').textContent = `${d.leftPct ?? '—'}% ${axisL}`;
+  el('.pct-row.science .pct-r').textContent = `${d.rightPct ?? '—'}% ${axisR}`;
 
   // Media pct row
-  el('.pct-row.media .pct-l').textContent = `${mediaAnalysis.leftPct  ?? '—'}% risk`;
-  el('.pct-row.media .pct-r').textContent = `${mediaAnalysis.rightPct ?? '—'}% beneficial`;
+  el('.pct-row.media .pct-l').textContent = `${mediaAnalysis.leftPct  ?? '—'}% ${axisL}`;
+  el('.pct-row.media .pct-r').textContent = `${mediaAnalysis.rightPct ?? '—'}% ${axisR}`;
+
+  // Update axis end labels with topic-specific terms
+  const axisLblLeft  = document.getElementById('axisLblLeft');
+  const axisLblRight = document.getElementById('axisLblRight');
+  if (axisLblLeft)  axisLblLeft.textContent  = '← ' + (axisL.charAt(0).toUpperCase() + axisL.slice(1));
+  if (axisLblRight) axisLblRight.textContent = (axisR.charAt(0).toUpperCase() + axisR.slice(1)) + ' →';
 
   // Animate consensus pins
   const sciPct = d.rightPct ?? 50;
@@ -2219,7 +2233,11 @@ function populateFromData(data) {
   // Divergence callout
   const divText = el('.div-bar .div-text');
   if (divText) {
-    const dir = medPct > sciPct ? 'further toward "Beneficial"' : 'further toward "Concern"';
+    const divAxisR = (window._axisRightLabel || 'beneficial');
+    const divAxisL = (window._axisLeftLabel  || 'no effect');
+    const dir = medPct > sciPct
+      ? `further toward "${divAxisR.charAt(0).toUpperCase()+divAxisR.slice(1)}"`
+      : `further toward "${divAxisL.charAt(0).toUpperCase()+divAxisL.slice(1)}"`;
     divText.innerHTML = `<strong>+${divergence}% divergence.</strong> Media coverage sits ${divergence} points ${dir} than the quality-weighted scientific evidence currently supports.`;
   }
 
@@ -2465,6 +2483,8 @@ function openShareCard() {
     ms: medPct,
     l:  leftLabel,
     r:  rightLabel,
+    al: window._axisLeftLabel  || 'no effect',
+    ar: window._axisRightLabel || 'beneficial',
     v:  verdict,
     c:  certText,
     d:  dotsStr,
