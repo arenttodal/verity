@@ -60,11 +60,11 @@
     :host{font-family:'Syne',sans-serif}
 
     #bb-trigger{position:fixed;${triggerPos()}width:32px;height:32px;border-radius:50%;
-      background:${CFG.triggerColor};border:2px solid rgba(255,255,255,0.15);
+      background:transparent;border:1.5px solid rgba(78,152,200,0.45);
       cursor:pointer;pointer-events:all;transition:all 0.2s;
       display:flex;align-items:center;justify-content:center;
-      box-shadow:0 2px 12px rgba(0,0,0,0.3);user-select:none}
-    #bb-trigger:hover{transform:scale(1.12);filter:brightness(1.2)}
+      box-shadow:none;user-select:none;backdrop-filter:blur(4px);}
+    #bb-trigger:hover{transform:scale(1.12);border-color:rgba(78,152,200,0.85);background:rgba(78,152,200,0.08);}
     #bb-trigger.working{background:rgba(200,120,20,0.88);border-color:rgba(240,160,60,0.5);animation:pulse-ring 1.5s ease-in-out infinite}
     #bb-trigger.success{background:rgba(30,160,80,0.88);border-color:rgba(60,200,120,0.5)}
     #bb-trigger.queued {background:rgba(80,140,200,0.88);border-color:rgba(100,170,240,0.5)}
@@ -273,7 +273,7 @@
 
   const html = `
     <button id="bb-trigger" title="Share feedback">
-      <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.9);font-family:'DM Mono',monospace;">${CFG.triggerIcon}</span>
+      <span style="font-size:13px;font-weight:300;color:rgba(255,255,255,0.55);font-family:'DM Mono',monospace;line-height:1;">?</span>
     </button>
 
     <div id="bb-overlay" role="dialog" aria-modal="true">
