@@ -893,9 +893,9 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
           <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M6.5 9.5L9.5 6.5M9.5 6.5H7M9.5 6.5V9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M5 4H3a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="11" cy="5" r="2.3" stroke="currentColor" stroke-width="1.4"/></svg>
           Copy link
         </button>
-        <button class="share-btn" id="shareImageBtn" onclick="shareImage()">
+        <button class="share-btn" id="shareImageBtn" onclick="openShareCard()">
           <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M1 11l3.5-3.5 3 3 2.5-2.5 4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="7" r="1" fill="currentColor"/></svg>
-          Save as image
+          View share card
         </button>
       </div>
     </div>
@@ -1998,6 +1998,11 @@ function populateFromData(data) {
   const studyTag = document.getElementById('studyCountTag');
   if (studyTag) studyTag.textContent = `Quality-weighted · ${papers.length} studies`;
 
+  // Expose mediaDots globally for share card
+  if (typeof mediaDots !== 'undefined') {
+    window._mediaDots = mediaDots;
+  }
+
   // Ensure synthesis text renders with proper paragraph breaks
   let summaryHtml = analysis.summary || '—';
   // If it's plain paragraphs separated by double newlines or <br><br>, wrap in <p> tags
@@ -2116,263 +2121,37 @@ function shareLink() {
 }
 
 // ── IMAGE EXPORT ───────────────────────────────────────────────────
-async function shareImage() {
-  const btn      = document.getElementById('shareImageBtn');
-  const origHTML = btn.innerHTML;
-  btn.textContent = 'Generating…';
-
-  // ── Gather all data we need ───────────────────────────────────
-  const query      = document.getElementById('queryTitle')?.textContent  || '';
+function openShareCard() {
+  const query      = document.getElementById('queryTitle')?.textContent || '';
   const verdict    = document.getElementById('verdictText')?.textContent  || '';
   const certText   = document.getElementById('certLabel')?.textContent    || '';
   const sciPct     = window._sciPct     || 50;
   const rightLabel = window._rightLabel || 'Benefit';
   const leftLabel  = window._leftLabel  || 'Concern';
   const dots       = (typeof scienceDots !== 'undefined') ? scienceDots : [];
+  const nStudies   = dots.length;
+  const nMedia     = (typeof mediaDots !== 'undefined') ? mediaDots.length : 0;
 
-  // ── Canvas setup ─────────────────────────────────────────────
-  const W = 1080, H = 1350;
-  const cv = document.getElementById('shareCanvas');
-  cv.width = W; cv.height = H;
-  const ctx = cv.getContext('2d');
-  const pad = 80;
-  const innerW = W - pad * 2;
+  // Encode dots as compact string: x,weight,type|x,weight,type|...
+  const dotsStr = dots.map(d => [
+    (d.x || 0).toFixed(3),
+    Math.min(5, Math.max(1, Math.round(d.weight) || 2)),
+    d.type || 'unknown'
+  ].join(',')).join('|');
 
-  // ── Load fonts into canvas context ───────────────────────────
-  // Preload by drawing invisible text; fonts already loaded on page
-  await document.fonts.ready;
+  const params = new URLSearchParams({
+    q:  query,
+    s:  sciPct,
+    l:  leftLabel,
+    r:  rightLabel,
+    v:  verdict,
+    c:  certText,
+    d:  dotsStr,
+    n:  nStudies,
+    nm: nMedia,
+  });
 
-  // ── Background ───────────────────────────────────────────────
-  ctx.fillStyle = '#07080f';
-  ctx.fillRect(0, 0, W, H);
-
-  // Subtle grid
-  ctx.strokeStyle = 'rgba(255,255,255,0.018)';
-  ctx.lineWidth = 1;
-  for (let x = 0; x < W; x += 60) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-  for (let y = 0; y < H; y += 60) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
-
-  // Ambient top-right glow
-  const gl = ctx.createRadialGradient(W*0.78, 0, 0, W*0.78, 0, W*0.75);
-  gl.addColorStop(0, 'rgba(78,152,200,0.09)');
-  gl.addColorStop(1, 'transparent');
-  ctx.fillStyle = gl;
-  ctx.fillRect(0, 0, W, H);
-
-  // ── Helpers ──────────────────────────────────────────────────
-  function rr(x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
-    ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
-    ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
-    ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r); ctx.closePath();
-  }
-
-  // Word-wrap helper — returns array of lines
-  function wrapText(text, font, maxWidth) {
-    ctx.font = font;
-    const words = text.split(' ');
-    const lines = [];
-    let line = '';
-    for (const w of words) {
-      const test = line + (line ? ' ' : '') + w;
-      if (ctx.measureText(test).width > maxWidth && line) {
-        lines.push(line); line = w;
-      } else { line = test; }
-    }
-    if (line) lines.push(line);
-    return lines;
-  }
-
-  let y = 0; // running Y cursor
-
-  // ── 1. WORDMARK ──────────────────────────────────────────────
-  y = 96;
-  ctx.font = '600 58px "Instrument Sans", sans-serif';
-  ctx.fillStyle = 'rgba(255,255,255,0.92)';
-  ctx.fillText('Verity', pad, y);
-
-  y += 38;
-  ctx.font = '300 22px "DM Mono", monospace';
-  ctx.fillStyle = 'rgba(255,255,255,0.22)';
-  ctx.fillText('Evidence Intelligence Platform', pad, y);
-
-  y += 18;
-  ctx.fillStyle = '#d4a847';
-  ctx.fillRect(pad, y, 56, 2);
-
-  // ── 2. QUERY ─────────────────────────────────────────────────
-  y += 56;
-  const qLines = wrapText(query, '300 46px "Cormorant Garamond", Georgia, serif', innerW);
-  ctx.font = '300 46px "Cormorant Garamond", Georgia, serif';
-  ctx.fillStyle = 'rgba(255,255,255,0.90)';
-  for (const l of qLines) { ctx.fillText(l, pad, y); y += 58; }
-
-  // ── 3. SCORE SECTION ─────────────────────────────────────────
-  y += 24;
-
-  // Big pct + label on right
-  const isLeft = sciPct < 50;
-  const pctColor = isLeft ? 'rgba(204,92,92,0.90)' : 'rgba(78,152,200,0.90)';
-  ctx.font = '600 80px "Instrument Sans", sans-serif';
-  ctx.fillStyle = pctColor;
-  ctx.textAlign = 'right';
-  ctx.fillText(sciPct + '%', pad + innerW, y);
-  ctx.textAlign = 'left';
-
-  y += 10;
-  // Bar
-  const barH = 8, barR = 4;
-  rr(pad, y, innerW, barH, barR);
-  const barGrad = ctx.createLinearGradient(pad, 0, pad + innerW, 0);
-  barGrad.addColorStop(0,   'rgba(180,60,60,0.60)');
-  barGrad.addColorStop(0.5, 'rgba(255,255,255,0.10)');
-  barGrad.addColorStop(1,   'rgba(60,110,200,0.60)');
-  ctx.fillStyle = barGrad; ctx.fill();
-
-  // Pin
-  const pinX = pad + (sciPct / 100) * innerW;
-  ctx.beginPath();
-  ctx.arc(pinX, y + barH/2, 14, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(255,255,255,0.94)';
-  ctx.shadowColor = 'rgba(255,255,255,0.3)';
-  ctx.shadowBlur = 12;
-  ctx.fill();
-  ctx.shadowBlur = 0;
-
-  y += barH + 30;
-  // Axis labels
-  ctx.font = '400 20px "DM Mono", monospace';
-  ctx.fillStyle = 'rgba(204,92,92,0.65)'; ctx.textAlign = 'left';
-  ctx.fillText('← ' + leftLabel, pad, y);
-  ctx.fillStyle = 'rgba(78,152,200,0.65)'; ctx.textAlign = 'right';
-  ctx.fillText(rightLabel + ' →', pad + innerW, y);
-  ctx.textAlign = 'left';
-
-  // ── 4. CERTAINTY BADGE ───────────────────────────────────────
-  y += 52;
-  ctx.font = '400 19px "DM Mono", monospace';
-  ctx.fillStyle = 'rgba(255,255,255,0.28)';
-  ctx.fillText(certText.toUpperCase(), pad, y);
-
-  // ── 5. VERDICT BOX ───────────────────────────────────────────
-  y += 28;
-  const vFont   = '400 28px "Instrument Sans", sans-serif';
-  const vLines  = wrapText(verdict, vFont, innerW - 52);
-  const vLineH  = 40;
-  const vBoxH   = vLines.length * vLineH + 40;
-
-  rr(pad, y, innerW, vBoxH, 10);
-  ctx.fillStyle = 'rgba(255,255,255,0.025)'; ctx.fill();
-  // left accent
-  ctx.fillStyle = 'rgba(255,255,255,0.22)';
-  ctx.fillRect(pad, y, 3, vBoxH);
-
-  ctx.font = vFont;
-  ctx.fillStyle = 'rgba(255,255,255,0.72)';
-  let vy = y + 36;
-  for (const l of vLines) { ctx.fillText(l, pad + 26, vy); vy += vLineH; }
-
-  y = vy + 32;
-
-  // ── 6. EVIDENCE STRIP ────────────────────────────────────────
-  const stripH  = 120;
-  const stripPad = 4;
-  const axisY   = y + stripH * 0.55;
-  const axisX0  = pad;
-  const axisX1  = pad + innerW;
-
-  // Strip label
-  ctx.font = '300 17px "DM Mono", monospace';
-  ctx.fillStyle = 'rgba(255,255,255,0.20)';
-  ctx.fillText('EVIDENCE STRIP  ·  ' + dots.length + ' STUDIES', pad, y - 8);
-
-  // Axis gradient
-  const axGrad = ctx.createLinearGradient(axisX0, 0, axisX1, 0);
-  axGrad.addColorStop(0,   'rgba(180,60,60,0.50)');
-  axGrad.addColorStop(0.5, 'rgba(255,255,255,0.20)');
-  axGrad.addColorStop(1,   'rgba(60,110,200,0.50)');
-  ctx.strokeStyle = axGrad; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(axisX0, axisY); ctx.lineTo(axisX1, axisY); ctx.stroke();
-
-  // Axis tick labels
-  ctx.font = '300 16px "DM Mono", monospace';
-  ctx.textAlign = 'left';  ctx.fillStyle = 'rgba(180,80,80,0.45)';
-  ctx.fillText('Concern', axisX0, axisY + stripH * 0.42);
-  ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.20)';
-  ctx.fillText('Neutral', axisX0 + innerW/2, axisY + stripH * 0.42);
-  ctx.textAlign = 'right';  ctx.fillStyle = 'rgba(78,152,200,0.45)';
-  ctx.fillText('Benefit', axisX1, axisY + stripH * 0.42);
-  ctx.textAlign = 'left';
-
-  // Draw ticks
-  const TICK_H_MAP = [0, 7, 11, 17, 24, 32];
-  const SCI_COLORS = {
-    meta:   'rgba(235,238,252,0.80)',
-    rct:    'rgba(215,224,242,0.58)',
-    cohort: 'rgba(190,218,215,0.44)',
-    obs:    'rgba(175,178,200,0.28)',
-    unknown:'rgba(175,178,200,0.24)',
-  };
-  const placed = [];
-  for (const d of dots) {
-    let sx = axisX0 + d.x * innerW;
-    for (const p of placed) { if (Math.abs(sx - p) < 4) { sx += 4; } }
-    placed.push(sx);
-
-    const w    = Math.min(5, Math.max(1, Math.round(d.weight) || 2));
-    const tickH = (TICK_H_MAP[w] || 11) * 1.4;
-    const color = SCI_COLORS[d.type] || SCI_COLORS.unknown;
-    const isMeta = d.type === 'meta';
-
-    if (isMeta) {
-      rr(sx - 2, axisY - tickH, 4, tickH, 2);
-      ctx.fillStyle = color; ctx.fill();
-    } else {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = isMeta ? 3 : 1.5;
-      ctx.beginPath(); ctx.moveTo(sx, axisY - tickH); ctx.lineTo(sx, axisY); ctx.stroke();
-    }
-  }
-
-  // Avg marker on strip
-  if (dots.length > 0) {
-    const tw  = dots.reduce((s,d) => s + (d.weight||2), 0) || 1;
-    const ax  = dots.reduce((s,d) => s + d.x * (d.weight||2), 0) / tw;
-    const avX = axisX0 + ax * innerW;
-    const bladeTop = axisY - 28;
-    ctx.strokeStyle = 'rgba(255,255,255,0.65)'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(avX, bladeTop); ctx.lineTo(avX, axisY); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,0.65)'; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(avX-4, axisY); ctx.lineTo(avX+4, axisY); ctx.stroke();
-    ctx.beginPath(); ctx.arc(avX, bladeTop, 4, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(255,255,255,0.70)'; ctx.fill();
-    ctx.font = '300 15px "DM Mono", monospace';
-    ctx.fillStyle = 'rgba(255,255,255,0.45)';
-    ctx.fillText('AVG', avX + 8, bladeTop + 4);
-  }
-
-  y = axisY + stripH * 0.48 + 40;
-
-  // ── 7. FOOTER ────────────────────────────────────────────────
-  const footerY = H - 80;
-  ctx.fillStyle = 'rgba(255,255,255,0.08)';
-  ctx.fillRect(pad, footerY - 24, innerW, 1);
-  ctx.font = '300 21px "DM Mono", monospace';
-  ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  ctx.textAlign = 'left';
-  ctx.fillText('verity.science', pad, footerY);
-  ctx.fillStyle = 'rgba(255,255,255,0.14)';
-  ctx.textAlign = 'right';
-  ctx.fillText('Evidence Intelligence Platform', pad + innerW, footerY);
-  ctx.textAlign = 'left';
-
-  // ── Download ─────────────────────────────────────────────────
-  const link = document.createElement('a');
-  link.download = 'verity-' + query.slice(0,30).replace(/[^a-z0-9]/gi,'-').toLowerCase() + '.png';
-  link.href = cv.toDataURL('image/png');
-  link.click();
-  setTimeout(() => { btn.innerHTML = origHTML; }, 1500);
+  window.open('/share.html?' + params.toString(), '_blank');
 }
 
 // ── AUTO-LOAD FROM URL PARAM ───────────────────────────────────────

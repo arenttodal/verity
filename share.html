@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Verity — Evidence Summary</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:     #07080f;
+  --paper:  rgba(255,255,255,0.92);
+  --muted:  rgba(255,255,255,0.35);
+  --border: rgba(255,255,255,0.07);
+  --gold:   #d4a847;
+  --red:    #b84040;
+  --blue:   #3b6eaa;
+}
+
+html, body {
+  background: var(--bg);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+/* Grain overlay */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  opacity: 0.16;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.78' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23g)' opacity='0.09'/%3E%3C/svg%3E");
+  background-size: 200px;
+}
+
+/* ── CARD ── */
+.card {
+  position: relative; z-index: 1;
+  width: 100%; max-width: 420px;
+  background: #080910;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.03),
+    0 32px 80px rgba(0,0,0,0.7),
+    0 8px 24px rgba(0,0,0,0.5);
+}
+
+/* Ambient glow inside card */
+.card::before {
+  content: '';
+  position: absolute;
+  top: -60px; right: -60px;
+  width: 320px; height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(78,152,200,0.10) 0%, transparent 70%);
+  pointer-events: none;
+}
+.card::after {
+  content: '';
+  position: absolute;
+  bottom: -40px; left: -40px;
+  width: 220px; height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(180,60,60,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ── TOP BAR ── */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.wordmark {
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 20px; font-weight: 600;
+  color: var(--paper);
+  letter-spacing: -0.01em;
+}
+
+.wordmark-sub {
+  font-family: 'DM Mono', monospace;
+  font-size: 8px; letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.22);
+  margin-top: 2px;
+}
+
+.cert-badge {
+  font-family: 'DM Mono', monospace;
+  font-size: 8.5px; letter-spacing: 0.10em; text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid;
+}
+.cert-strong  { color: rgba(80,190,120,0.85); border-color: rgba(80,190,120,0.25); background: rgba(80,190,120,0.06); }
+.cert-moderate{ color: rgba(200,175,60,0.85); border-color: rgba(200,175,60,0.25); background: rgba(200,175,60,0.06); }
+.cert-low     { color: rgba(200,130,60,0.80); border-color: rgba(200,130,60,0.25); background: rgba(200,130,60,0.06); }
+.cert-vlow    { color: rgba(200,80,80,0.80);  border-color: rgba(200,80,80,0.25);  background: rgba(200,80,80,0.06); }
+
+/* ── BODY ── */
+.body { padding: 24px 24px 0; }
+
+/* Query */
+.query-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: rgba(255,255,255,0.22); margin-bottom: 10px;
+}
+
+.query-text {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(22px, 6vw, 28px);
+  font-weight: 400; line-height: 1.20;
+  color: var(--paper);
+  margin-bottom: 28px;
+  letter-spacing: -0.01em;
+}
+
+/* ── SCORE SECTION ── */
+.score-section { margin-bottom: 24px; }
+
+.score-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.score-big {
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: clamp(52px, 15vw, 72px);
+  font-weight: 700; line-height: 1;
+  letter-spacing: -0.03em;
+}
+.score-big.left  { color: var(--red); }
+.score-big.right { color: var(--blue); }
+
+.score-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: rgba(255,255,255,0.28);
+  text-align: right;
+  line-height: 1.6;
+}
+
+/* Bar */
+.bar-wrap { position: relative; height: 6px; border-radius: 3px; overflow: visible; margin-bottom: 12px; }
+
+.bar-track {
+  width: 100%; height: 6px; border-radius: 3px;
+  background: linear-gradient(to right, rgba(184,64,64,0.55) 0%, rgba(255,255,255,0.10) 50%, rgba(59,110,170,0.55) 100%);
+}
+
+.bar-pin {
+  position: absolute;
+  top: 50%; transform: translate(-50%, -50%);
+  width: 18px; height: 18px; border-radius: 50%;
+  background: rgba(255,255,255,0.95);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.15), 0 2px 8px rgba(0,0,0,0.4);
+}
+
+.bar-labels {
+  display: flex; justify-content: space-between;
+  font-family: 'DM Mono', monospace;
+  font-size: 8px; letter-spacing: 0.10em; text-transform: uppercase;
+}
+.bar-labels .lbl-left  { color: rgba(184,64,64,0.60); }
+.bar-labels .lbl-mid   { color: rgba(255,255,255,0.18); }
+.bar-labels .lbl-right { color: rgba(59,110,170,0.60); }
+
+/* ── DIVIDER ── */
+.divider { height: 1px; background: rgba(255,255,255,0.05); margin: 0 24px; }
+
+/* ── VERDICT ── */
+.verdict-section { padding: 20px 24px; }
+
+.verdict-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 7.5px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: rgba(255,255,255,0.22); margin-bottom: 10px;
+}
+
+.verdict-text {
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: clamp(14px, 3.8vw, 16px);
+  font-weight: 400; line-height: 1.72;
+  color: rgba(255,255,255,0.75);
+}
+
+/* ── EVIDENCE STRIP ── */
+.strip-section {
+  padding: 0 24px 20px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  margin-top: 4px;
+  padding-top: 16px;
+}
+
+.strip-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 7.5px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: rgba(255,255,255,0.20); margin-bottom: 10px;
+}
+
+#shareStrip {
+  width: 100%;
+  display: block;
+  overflow: visible;
+}
+
+/* ── FOOTER ── */
+.footer {
+  padding: 14px 24px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.footer-url {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px; letter-spacing: 0.10em;
+  color: rgba(255,255,255,0.20);
+}
+
+.footer-right {
+  font-family: 'DM Mono', monospace;
+  font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: rgba(255,255,255,0.14);
+}
+
+.back-btn {
+  display: block;
+  text-align: center;
+  margin-top: 20px;
+  font-family: 'DM Mono', monospace;
+  font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: rgba(255,255,255,0.20);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.back-btn:hover { color: rgba(255,255,255,0.45); }
+
+</style>
+</head>
+<body>
+
+<div style="width:100%;max-width:420px;position:relative;z-index:1;">
+  <div class="card" id="shareCard">
+
+    <!-- TOP BAR -->
+    <div class="top-bar">
+      <div>
+        <div class="wordmark">Verity</div>
+        <div class="wordmark-sub">Evidence Intelligence</div>
+      </div>
+      <div class="cert-badge" id="certBadge"></div>
+    </div>
+
+    <!-- BODY -->
+    <div class="body">
+
+      <!-- Query -->
+      <div class="query-label">Research question</div>
+      <div class="query-text" id="queryText">Loading…</div>
+
+      <!-- Score -->
+      <div class="score-section">
+        <div class="score-row">
+          <div class="score-big" id="scoreBig">—%</div>
+          <div class="score-label" id="scoreLabel"></div>
+        </div>
+        <div class="bar-wrap">
+          <div class="bar-track"></div>
+          <div class="bar-pin" id="barPin"></div>
+        </div>
+        <div class="bar-labels">
+          <span class="lbl-left" id="lblLeft">Concern</span>
+          <span class="lbl-mid">Neutral</span>
+          <span class="lbl-right" id="lblRight">Benefit</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Verdict -->
+    <div class="verdict-section">
+      <div class="verdict-label">Bottom line</div>
+      <div class="verdict-text" id="verdictText">—</div>
+    </div>
+
+    <!-- Evidence strip -->
+    <div class="strip-section">
+      <div class="strip-label" id="stripLabel">Evidence strip</div>
+      <svg id="shareStrip" height="70" viewBox="0 0 372 70" preserveAspectRatio="none"></svg>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <div class="footer-url">verity.science</div>
+      <div class="footer-right" id="studyCount"></div>
+    </div>
+
+  </div>
+
+  <a class="back-btn" href="javascript:window.close()">← Close and return to search</a>
+</div>
+
+<script>
+// ── Parse URL params ────────────────────────────────────────────
+const p = new URLSearchParams(window.location.search);
+
+const query      = p.get('q')  || 'Unknown query';
+const sciPct     = parseInt(p.get('s')  || '50', 10);
+const leftLabel  = p.get('l')  || 'Concern';
+const rightLabel = p.get('r')  || 'Benefit';
+const verdict    = p.get('v')  || '';
+const certText   = p.get('c')  || '';
+const dotsRaw    = p.get('d')  || '';
+const nStudies   = p.get('n')  || '0';
+const nMedia     = p.get('nm') || '0';
+
+// ── Populate text fields ────────────────────────────────────────
+document.title = 'Verity — ' + query.slice(0, 60);
+document.getElementById('queryText').textContent  = query;
+document.getElementById('verdictText').textContent = verdict || 'No verdict available.';
+document.getElementById('lblLeft').textContent   = leftLabel;
+document.getElementById('lblRight').textContent  = rightLabel;
+
+const nLabel = nMedia > 0
+  ? nStudies + ' studies · ' + nMedia + ' media'
+  : nStudies + ' studies';
+document.getElementById('studyCount').textContent = nLabel;
+document.getElementById('stripLabel').textContent =
+  'Evidence strip · ' + nStudies + ' studies';
+
+// ── Score display ───────────────────────────────────────────────
+const isLeft = sciPct < 50;
+const bigEl  = document.getElementById('scoreBig');
+bigEl.textContent = sciPct + '%';
+bigEl.className   = 'score-big ' + (isLeft ? 'left' : 'right');
+
+const scoreLabel = document.getElementById('scoreLabel');
+scoreLabel.innerHTML = (isLeft ? leftLabel : rightLabel).toUpperCase()
+  + '<br><span style="font-size:7px;opacity:0.5;letter-spacing:0.08em;">science consensus</span>';
+
+// Pin position
+const pin = document.getElementById('barPin');
+pin.style.left = sciPct + '%';
+
+// ── Certainty badge ─────────────────────────────────────────────
+const badge = document.getElementById('certBadge');
+badge.textContent = certText || 'Unknown signal';
+const cl = certText.toLowerCase();
+if (cl.includes('strong'))       badge.className = 'cert-badge cert-strong';
+else if (cl.includes('moderate')) badge.className = 'cert-badge cert-moderate';
+else if (cl.includes('low') && !cl.includes('very')) badge.className = 'cert-badge cert-low';
+else                              badge.className = 'cert-badge cert-vlow';
+
+// ── Evidence strip ──────────────────────────────────────────────
+const svg = document.getElementById('shareStrip');
+const W = 372, H = 70;
+const axisY = 44;
+
+// Axis gradient line
+const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+const grad = document.createElementNS('http://www.w3.org/2000/svg','linearGradient');
+grad.id = 'axGrad'; grad.setAttribute('x1','0%'); grad.setAttribute('x2','100%');
+const s1 = document.createElementNS('http://www.w3.org/2000/svg','stop');
+s1.setAttribute('offset','0%');   s1.setAttribute('stop-color','rgba(184,64,64,0.55)');
+const s2 = document.createElementNS('http://www.w3.org/2000/svg','stop');
+s2.setAttribute('offset','50%');  s2.setAttribute('stop-color','rgba(255,255,255,0.15)');
+const s3 = document.createElementNS('http://www.w3.org/2000/svg','stop');
+s3.setAttribute('offset','100%'); s3.setAttribute('stop-color','rgba(59,110,170,0.55)');
+grad.appendChild(s1); grad.appendChild(s2); grad.appendChild(s3);
+defs.appendChild(grad); svg.appendChild(defs);
+
+const axis = document.createElementNS('http://www.w3.org/2000/svg','line');
+axis.setAttribute('x1','0'); axis.setAttribute('x2',W);
+axis.setAttribute('y1',axisY); axis.setAttribute('y2',axisY);
+axis.setAttribute('stroke','url(#axGrad)'); axis.setAttribute('stroke-width','1.2');
+svg.appendChild(axis);
+
+// Parse and draw dots
+if (dotsRaw) {
+  const TICK_H = [0, 6, 9, 14, 20, 28];
+  const TYPE_COLORS = {
+    meta:    'rgba(235,238,252,0.82)',
+    rct:     'rgba(210,224,242,0.60)',
+    cohort:  'rgba(185,218,210,0.46)',
+    obs:     'rgba(175,178,200,0.30)',
+    unknown: 'rgba(170,174,200,0.24)',
+  };
+
+  const dots = dotsRaw.split('|').map(s => {
+    const parts = s.split(',');
+    return { x: parseFloat(parts[0]), w: parseInt(parts[1]||2), t: parts[2]||'unknown' };
+  }).filter(d => !isNaN(d.x));
+
+  // Jitter to avoid stacking
+  const placed = [];
+  dots.forEach(d => {
+    let sx = Math.round(d.x * W);
+    placed.forEach(p => { if (Math.abs(sx - p) < 3) sx += 3; });
+    placed.push(sx);
+
+    const tH = TICK_H[Math.min(5, Math.max(1, d.w))] || 9;
+    const col = TYPE_COLORS[d.t] || TYPE_COLORS.unknown;
+    const isMeta = d.t === 'meta';
+
+    if (isMeta) {
+      const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      rect.setAttribute('x', sx - 2);
+      rect.setAttribute('y', axisY - tH);
+      rect.setAttribute('width', 4);
+      rect.setAttribute('height', tH);
+      rect.setAttribute('rx', 1.5);
+      rect.setAttribute('fill', col);
+      svg.appendChild(rect);
+    } else {
+      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1', sx); line.setAttribute('x2', sx);
+      line.setAttribute('y1', axisY - tH); line.setAttribute('y2', axisY);
+      line.setAttribute('stroke', col);
+      line.setAttribute('stroke-width', isMeta ? '2.5' : '1.2');
+      svg.appendChild(line);
+    }
+  });
+
+  // Weighted average blade
+  const tw = dots.reduce((s,d) => s + d.w, 0) || 1;
+  const ax = dots.reduce((s,d) => s + d.x * d.w, 0) / tw;
+  const avX = Math.round(ax * W);
+  const bladeTop = axisY - 24;
+
+  const blade = document.createElementNS('http://www.w3.org/2000/svg','line');
+  blade.setAttribute('x1', avX); blade.setAttribute('x2', avX);
+  blade.setAttribute('y1', bladeTop); blade.setAttribute('y2', axisY);
+  blade.setAttribute('stroke', 'rgba(255,255,255,0.60)');
+  blade.setAttribute('stroke-width', '1.2');
+  svg.appendChild(blade);
+
+  const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  dot.setAttribute('cx', avX); dot.setAttribute('cy', bladeTop);
+  dot.setAttribute('r', '3.5');
+  dot.setAttribute('fill', 'rgba(255,255,255,0.65)');
+  svg.appendChild(dot);
+
+  const avgLabel = document.createElementNS('http://www.w3.org/2000/svg','text');
+  avgLabel.setAttribute('x', avX + 6);
+  avgLabel.setAttribute('y', bladeTop + 4);
+  avgLabel.setAttribute('font-family', 'DM Mono, monospace');
+  avgLabel.setAttribute('font-size', '8');
+  avgLabel.setAttribute('fill', 'rgba(255,255,255,0.35)');
+  avgLabel.setAttribute('letter-spacing', '0.06em');
+  avgLabel.textContent = 'AVG';
+  svg.appendChild(avgLabel);
+}
+
+// ── Back link: if opened from verity, go back ─────────────────────
+const backBtn = document.querySelector('.back-btn');
+if (document.referrer && document.referrer.includes(window.location.host)) {
+  backBtn.href = document.referrer;
+  backBtn.textContent = '← Back to results';
+} else if (window.history.length > 1) {
+  backBtn.href = 'javascript:history.back()';
+  backBtn.textContent = '← Back to results';
+} else {
+  backBtn.href = '/';
+  backBtn.textContent = '← Search Verity';
+}
+</script>
+</body>
+</html>
