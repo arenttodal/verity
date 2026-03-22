@@ -243,7 +243,7 @@ body::before {
     <!-- EVIDENCE STRIP -->
     <div class="strip-section">
       <div class="strip-header">
-        <div class="section-eyebrow" style="margin:0;" id="stripLabel">Evidence strip</div>
+        <div class="section-eyebrow" style="margin:0;">Evidence strip</div>
         <div class="strip-legend">
           <div class="legend-item">
             <div class="legend-dot" style="background:rgba(235,238,252,0.75);"></div>
@@ -290,10 +290,8 @@ document.title = 'Verity — ' + query.slice(0, 60);
 document.getElementById('queryText').textContent    = query;
 document.getElementById('verdictText').textContent  = verdict || '—';
 
-document.getElementById('countLabel').textContent   =
+document.getElementById('countLabel').textContent =
   nStudies + ' studies · ' + nMedia + ' media';
-document.getElementById('stripLabel').textContent   =
-  'Evidence strip · ' + nStudies + ' science · ' + nMedia + ' media';
 
 // ── Score display ────────────────────────────────────────────────
 const sDir = sciPct >= 50 ? rightLabel : leftLabel;
@@ -321,13 +319,14 @@ const divEl = document.getElementById('divergenceNote');
 if (div >= 8) {
   const dir  = medPct > sciPct ? rightLabel : leftLabel;
   const sign = medPct > sciPct ? '+' : '-';
-  // Use full explanation if available, fall back to headline
-  const causeText = daExplanation || (daHeadline ? daHeadline : '');
-  const causeHint = causeText
-    ? `<span style="display:block;margin-top:7px;font-style:italic;opacity:0.72;font-size:0.95em;">${causeText}</span>`
-    : '';
+  // Merge divergence statement with first sentence of explanation into one line
+  const firstSentence = (daExplanation || '').split(/(?<=[.!?])\s/)[0] || '';
+  // Strip the leading capital and trailing period to flow naturally after a comma
+  const causeClause = firstSentence
+    ? ', ' + firstSentence.replace(/^[A-Z]/, m => m.toLowerCase()).replace(/\.$/, '') + '.'
+    : '.';
   divEl.innerHTML =
-    `<strong>${sign}${div}% divergence.</strong> Media coverage leans ${div} points further toward "${dir}" than the science supports.` + causeHint;
+    `<strong>${sign}${div}% divergence.</strong> Media coverage leans ${div} points further toward "${dir}" than the science supports${causeClause}`;
   divEl.style.display = 'block';
 }
 
