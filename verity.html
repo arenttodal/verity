@@ -1649,7 +1649,7 @@ function renderDetail(el, data, layer) {
         <div class="sb-abstract" style="display:block;">
           ${getAbstract(data.title)}
         </div>
-        <a class="sb-doi" href="https://doi.org/" target="_blank" rel="noopener">↗ View full paper</a>
+        <a class="sb-doi" href="${paperUrl(data)}" target="_blank" rel="noopener">↗ View full paper</a>
       </div>
       <div class="sb-section-divider">Media coverage of this finding</div>
       ${getRelatedMedia(data.x).map(m => renderMediaEntry(m, false)).join('')}`;
@@ -1704,6 +1704,7 @@ function renderScienceEntry(d, isActive) {
         <span class="sb-badge ${d.type}">${typeLabel(d.type)}</span>
       </div>
       ${isActive ? `<div class="sb-abstract" style="display:block;">${getAbstract(d.title)}</div>` : ''}
+      <a class="sb-doi" href="${paperUrl(d)}" target="_blank" rel="noopener" style="margin-top:8px;">↗ View full paper</a>
     </div>`;
 }
 
@@ -1719,6 +1720,7 @@ function renderMediaEntry(m, isActive) {
         <span class="sb-meta-val">${m.year}</span>
       </div>
       ${isActive && framing ? `<div class="sb-framing" style="display:block;">${framing}</div>` : ''}
+      ${m.url ? `<a class="sb-doi" href="${m.url}" target="_blank" rel="noopener" style="margin-top:8px;">↗ Read article</a>` : ''}
     </div>`;
 }
 
