@@ -2487,6 +2487,17 @@ app.post('/api/search', async (req, res) => {
     ]);
     console.log(`  Extracted: ${extractions.length} outcome sets`);
 
+    console.log(`\n🟢🟢🟢 CRITICAL PAPER FUNDING DEBUG 🟢🟢🟢`);
+    validatedPapers.forEach((p, i) => {
+      console.log(`📋 Paper ${i+1}: ${p.title?.slice(0, 30)}...`);
+      console.log(`   Source: ${p.source}`);
+      console.log(`   DOI: ${p.doi || 'none'}`);
+      console.log(`   PMID: ${p.pmid || 'none'}`);
+      console.log(`   fundingData: ${JSON.stringify(p.fundingData)}`);
+      console.log(`   ────────────────────────────────`);
+    });
+    console.log(`🟢🟢🟢 END CRITICAL PAPER DEBUG 🟢🟢🟢\n`);
+
     // ── FUNDING TRANSPARENCY ANALYSIS ─────────────────────────────────
     console.log(`\n🔍 FUNDING DEBUG START ═══════════════════════`);
     extractions.forEach((ex, i) => {
@@ -2510,20 +2521,33 @@ app.post('/api/search', async (req, res) => {
     console.log(`📄 PAPER FUNDING DEBUG END ═══════════════════════\n`);
     
     validatedPapers.forEach(p => {
+      console.log(`\n🔗 MATCHING PAPER: ${p.title?.slice(0, 40)}...`);
+      console.log(`   Paper DOI: ${p.doi}, PMID: ${p.pmid}`);
+      console.log(`   Paper fundingData: ${JSON.stringify(p.fundingData)}`);
+      
       const ex = extractions.find(e => {
         if (!e.ref) return false;
         if (p.doi  && e.ref.toLowerCase().includes(p.doi.toLowerCase()))  return true;
         if (p.pmid && e.ref.toLowerCase().includes(p.pmid.toLowerCase())) return true;
         return false;
       });
+      
       if (ex) {
+        console.log(`   ✅ Found extraction: ${ex.ref}`);
+        console.log(`   Extraction AI funding: ${JSON.stringify(ex.funding)}`);
+        
         p.design     = ex.design    || p.design;
         p.sampleSize = ex.sampleSize;
         p.extractedOutcomes = ex.outcomes;
         
         // Merge funding data from all sources (API + AI extraction)
-        p.fundingAnalysis = mergeFundingData(ex, p.fundingData);
-        ex.mergedFunding = p.fundingAnalysis; // Store for aggregation analysis
+        const mergedFunding = mergeFundingData(ex, p.fundingData);
+        console.log(`   🔄 Merge result: ${JSON.stringify(mergedFunding)}`);
+        
+        p.fundingAnalysis = mergedFunding;
+        ex.mergedFunding = mergedFunding; // Store for aggregation analysis
+      } else {
+        console.log(`   ❌ No matching extraction found`);
       }
     });
 
