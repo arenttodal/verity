@@ -670,8 +670,9 @@ function extractPubMedFunding(xmlContent) {
 
   // Extract from GrantList
   const grantMatches = [...xmlContent.matchAll(/<Grant>([\s\S]*?)<\/Grant>/g)];
+  console.log(`    PubMed grants found: ${grantMatches.length}`);
   
-  grantMatches.forEach(grantMatch => {
+  grantMatches.forEach((grantMatch, i) => {
     const grant = grantMatch[1];
     
     // Extract agency
@@ -2483,6 +2484,14 @@ app.post('/api/search', async (req, res) => {
     console.log(`  Funding analysis: ${fundingAnalysis.totalStudies} studies, ${fundingAnalysis.biasRisk} bias risk`);
 
     // Attach extraction data back to papers for the frontend
+    console.log(`\n📄 PAPER FUNDING DEBUG ═══════════════════════`);
+    validatedPapers.forEach((p, i) => {
+      console.log(`Paper ${i+1}: ${p.title?.slice(0, 40)}... (${p.source})`);
+      console.log(`   fundingData: ${JSON.stringify(p.fundingData || 'NONE')}`);
+      console.log(`   openalexId: ${p.openalexId || 'NONE'}`);
+    });
+    console.log(`📄 PAPER FUNDING DEBUG END ═══════════════════════\n`);
+    
     validatedPapers.forEach(p => {
       const ex = extractions.find(e => {
         if (!e.ref) return false;
