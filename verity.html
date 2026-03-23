@@ -2391,19 +2391,10 @@ function displayFundingAnalysis(fundingData) {
   
   const getBiasColor = (risk) => {
     switch(risk) {
-      case 'low': return '#4e98c8';
-      case 'moderate': return '#c87d3a';
-      case 'high': return '#cc5c5c';
-      default: return '#666';
-    }
-  };
-  
-  const getBiasIcon = (risk) => {
-    switch(risk) {
-      case 'low': return '✅';
-      case 'moderate': return '⚠️';
-      case 'high': return '🚨';
-      default: return '❓';
+      case 'low': return 'var(--text-muted)';
+      case 'moderate': return 'var(--orange)';
+      case 'high': return 'var(--red)';
+      default: return 'var(--text-muted)';
     }
   };
   
@@ -2412,61 +2403,62 @@ function displayFundingAnalysis(fundingData) {
   const mixedPct = Math.round((fundingData.categories.mixed / fundingData.totalStudies) * 100);
   
   let fundingBreakdown = `
+    <div style="margin-bottom: 14px; font-size: 11px; color: var(--text-muted);">
+      Analysis of ${fundingData.totalStudies} studies
+    </div>
+    
     <div style="margin-bottom: 16px;">
-      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-        <span style="font-size: 16px;">${getBiasIcon(fundingData.biasRisk)}</span>
-        <strong>Overall Bias Risk: </strong>
-        <span style="color: ${getBiasColor(fundingData.biasRisk)}; font-weight: 600;">
-          ${fundingData.biasRisk.toUpperCase()}
+      <div style="margin-bottom: 8px; font-size: 12px; color: var(--text-primary);">
+        <strong>Bias Risk:</strong> 
+        <span style="color: ${getBiasColor(fundingData.biasRisk)};">
+          ${fundingData.biasRisk.charAt(0).toUpperCase() + fundingData.biasRisk.slice(1)}
         </span>
-      </div>
-      <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">
-        Analysis of ${fundingData.totalStudies} studies
       </div>
     </div>
     
     <div style="margin-bottom: 16px;">
-      <div style="margin-bottom: 8px;"><strong>📊 Funding Breakdown:</strong></div>
-      <div style="font-size: 12px; line-height: 1.4;">
-        ${fundingData.governmentPct > 0 ? `<div>🏛️ Government: <strong>${fundingData.governmentPct}%</strong></div>` : ''}
-        ${fundingData.industryPct > 0 ? `<div>🏭 Industry: <strong>${fundingData.industryPct}%</strong></div>` : ''}
-        ${foundationPct > 0 ? `<div>🏢 Foundation: <strong>${foundationPct}%</strong></div>` : ''}
-        ${academicPct > 0 ? `<div>🎓 Academic: <strong>${academicPct}%</strong></div>` : ''}
-        ${mixedPct > 0 ? `<div>🔄 Mixed: <strong>${mixedPct}%</strong></div>` : ''}
-        ${fundingData.unknownPct > 0 ? `<div style="color: var(--text-muted);">❓ Unknown: <strong>${fundingData.unknownPct}%</strong></div>` : ''}
+      <div style="margin-bottom: 8px; font-size: 12px; color: var(--text-primary);"><strong>Funding Sources:</strong></div>
+      <div style="font-size: 11px; line-height: 1.5; color: var(--text-muted);">
+        ${fundingData.governmentPct > 0 ? `<div>Government: ${fundingData.governmentPct}%</div>` : ''}
+        ${fundingData.industryPct > 0 ? `<div>Industry: ${fundingData.industryPct}%</div>` : ''}
+        ${foundationPct > 0 ? `<div>Foundation: ${foundationPct}%</div>` : ''}
+        ${academicPct > 0 ? `<div>Academic: ${academicPct}%</div>` : ''}
+        ${mixedPct > 0 ? `<div>Mixed: ${mixedPct}%</div>` : ''}
+        ${fundingData.unknownPct > 0 ? `<div>Unknown: ${fundingData.unknownPct}%</div>` : ''}
       </div>
     </div>
   `;
   
   // Add specific funding sources if available
   if (fundingData.fundingSources && fundingData.fundingSources.length > 0) {
-    const topSources = fundingData.fundingSources.slice(0, 8); // Show top 8 sources
+    const topSources = fundingData.fundingSources.slice(0, 6); // Show top 6 sources
     fundingBreakdown += `
       <div style="margin-bottom: 16px;">
-        <div style="margin-bottom: 8px;"><strong>💰 Key Funders:</strong></div>
-        <div style="font-size: 11px; line-height: 1.3; color: var(--text-muted);">
-          ${topSources.join(', ')}${fundingData.fundingSources.length > 8 ? `, +${fundingData.fundingSources.length - 8} more` : ''}
+        <div style="margin-bottom: 8px; font-size: 12px; color: var(--text-primary);"><strong>Key Funders:</strong></div>
+        <div style="font-size: 10px; line-height: 1.4; color: var(--text-muted);">
+          ${topSources.join(', ')}${fundingData.fundingSources.length > 6 ? `, +${fundingData.fundingSources.length - 6} more` : ''}
         </div>
       </div>
     `;
   }
   
-  // Add bias alerts
-  if (fundingData.biasAlerts && fundingData.biasAlerts.length > 0) {
+  // Add explanatory note for transparency issues
+  if (fundingData.unknownPct >= 80) {
     fundingBreakdown += `
-      <div style="padding: 12px; background: rgba(200, 125, 58, 0.1); border-left: 3px solid #c87d3a; border-radius: 4px;">
-        <div style="font-size: 12px; font-weight: 600; margin-bottom: 6px; color: #c87d3a;">⚠️ Transparency Alerts</div>
-        <div style="font-size: 11px; line-height: 1.4; color: var(--text-muted);">
-          ${fundingData.biasAlerts.map(alert => `• ${alert}`).join('<br>')}
-        </div>
+      <div style="padding: 10px 0; font-size: 10px; line-height: 1.4; color: var(--text-muted); border-top: 1px solid var(--border-soft);">
+        ${fundingData.unknownPct}% of studies have unknown funding sources, likely because funding information is typically found in acknowledgments rather than abstracts. This limits transparency assessment but is common in this research area.
       </div>
     `;
-  } else {
+  } else if (fundingData.biasAlerts && fundingData.biasAlerts.length > 0) {
     fundingBreakdown += `
-      <div style="padding: 12px; background: rgba(78, 152, 200, 0.1); border-left: 3px solid #4e98c8; border-radius: 4px;">
-        <div style="font-size: 11px; color: var(--text-muted);">
-          ✅ Good funding transparency - no major bias concerns detected
-        </div>
+      <div style="padding: 10px 0; font-size: 10px; line-height: 1.4; color: var(--orange); border-top: 1px solid var(--border-soft);">
+        ${fundingData.biasAlerts.join('. ')}.
+      </div>
+    `;
+  } else if (fundingData.biasRisk === 'low') {
+    fundingBreakdown += `
+      <div style="padding: 10px 0; font-size: 10px; line-height: 1.4; color: var(--text-muted); border-top: 1px solid var(--border-soft);">
+        Good funding transparency with primarily independent sources.
       </div>
     `;
   }
