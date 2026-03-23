@@ -2129,7 +2129,7 @@ app.post('/api/search', async (req, res) => {
     if (trackTopic && db) {
       try {
         // Trigger topic tracking for this query
-        const trackingResult = await fetch('http://localhost:' + (process.env.PORT || 3001) + '/api/incremental/track', {
+        const trackingResult = await fetch('/api/incremental/track', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
