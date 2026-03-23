@@ -1175,7 +1175,11 @@ function analyzeFundingTransparency(extractions) {
   const governmentStudies = [];
   const allGrantNumbers = [];
   
-  extractions.forEach(ex => {
+  console.log(`    Analyzing funding for ${extractions.length} studies...`);
+  
+  extractions.forEach((ex, i) => {
+    console.log(`    Study ${i+1} (${ex.ref}): funding=${JSON.stringify(ex.funding)}, mergedFunding=${JSON.stringify(ex.mergedFunding)}`);
+    
     let fundingToUse = null;
     
     // Use merged funding data if available, otherwise fall back to individual sources
@@ -1185,6 +1189,7 @@ function analyzeFundingTransparency(extractions) {
       fundingToUse = ex.funding;
     } else {
       // Mark as unknown funding
+      console.log(`    Study ${i+1}: No funding data - marking as unknown`);
       fundingCategories.unknown++;
       return;
     }
@@ -2442,6 +2447,14 @@ app.post('/api/search', async (req, res) => {
     console.log(`  Extracted: ${extractions.length} outcome sets`);
 
     // ── FUNDING TRANSPARENCY ANALYSIS ─────────────────────────────────
+    // Debug funding data before analysis
+    console.log('  Debugging funding extraction:');
+    extractions.forEach((ex, i) => {
+      if (ex.funding && (ex.funding.sources?.length > 0 || ex.funding.categories?.length > 0)) {
+        console.log(`    Study ${i+1}: Found funding -`, ex.funding);
+      }
+    });
+    
     const fundingAnalysis = analyzeFundingTransparency(extractions);
     console.log(`  Funding analysis: ${fundingAnalysis.totalStudies} studies, ${fundingAnalysis.biasRisk} bias risk`);
 
