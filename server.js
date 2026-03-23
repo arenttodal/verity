@@ -882,6 +882,94 @@ Format: [1] R, [2] I, [3] R, etc.`
 }
 
 // ─────────────────────────────────────────────────────────────────
+//  FUNDING TRANSPARENCY ANALYSIS
+//  Aggregates funding sources and assesses bias risk across studies
+// ─────────────────────────────────────────────────────────────────
+function analyzeFundingTransparency(extractions) {
+  const fundingSources = [];
+  const fundingCategories = { government: 0, industry: 0, foundation: 0, academic: 0, mixed: 0, unknown: 0 };
+  const biasRisks = { low: 0, moderate: 0, high: 0 };
+  const industryStudies = [];
+  const governmentStudies = [];
+  
+  extractions.forEach(ex => {
+    if (ex.funding) {
+      // Collect all sources
+      if (ex.funding.sources) {
+        ex.funding.sources.forEach(source => {
+          if (source && source !== 'unknown') {
+            fundingSources.push(source);
+          }
+        });
+      }
+      
+      // Count categories
+      if (ex.funding.categories) {
+        ex.funding.categories.forEach(category => {
+          if (fundingCategories.hasOwnProperty(category)) {
+            fundingCategories[category]++;
+          }
+        });
+      }
+      
+      // Count bias risk
+      if (biasRisks.hasOwnProperty(ex.funding.biasRisk)) {
+        biasRisks[ex.funding.biasRisk]++;
+      }
+      
+      // Track industry vs government studies
+      if (ex.funding.industrySponsored) {
+        industryStudies.push(ex.ref);
+      }
+      if (ex.funding.categories && ex.funding.categories.includes('government')) {
+        governmentStudies.push(ex.ref);
+      }
+    }
+  });
+
+  // Calculate unique funding sources
+  const uniqueSources = [...new Set(fundingSources)];
+  
+  // Assess overall bias risk
+  const totalStudies = extractions.length;
+  const industryPct = (fundingCategories.industry / totalStudies) * 100;
+  const governmentPct = (fundingCategories.government / totalStudies) * 100;
+  const unknownPct = (fundingCategories.unknown / totalStudies) * 100;
+  
+  let overallBiasRisk = 'low';
+  if (industryPct > 50) {
+    overallBiasRisk = 'high';
+  } else if (industryPct > 25 || unknownPct > 40) {
+    overallBiasRisk = 'moderate';
+  }
+  
+  // Identify potential bias patterns
+  const biasAlerts = [];
+  if (industryPct > 60) {
+    biasAlerts.push(`High industry funding: ${Math.round(industryPct)}% of studies`);
+  }
+  if (unknownPct > 50) {
+    biasAlerts.push(`Limited transparency: ${Math.round(unknownPct)}% funding unknown`);
+  }
+  if (fundingCategories.industry > 0 && fundingCategories.government === 0) {
+    biasAlerts.push('No independent government-funded studies found');
+  }
+
+  return {
+    totalStudies,
+    fundingSources: uniqueSources,
+    categories: fundingCategories,
+    biasRisks,
+    biasRisk: overallBiasRisk,
+    biasAlerts,
+    industryPct: Math.round(industryPct),
+    governmentPct: Math.round(governmentPct),
+    independentPct: Math.round(governmentPct + (fundingCategories.foundation / totalStudies) * 100),
+    unknownPct: Math.round(unknownPct)
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
 //  STEP 4 — Claude: structured outcome extraction
 //  Claude's ONLY role: extract what each paper actually found.
 //  No scoring. No percentages. Pure extraction.
@@ -931,7 +1019,13 @@ Return ONLY:
       "sampleSize":         <integer total N or null if not stated>,
       "populationMatch":    <0.0-1.0: 1.0=exactly the population the query is about, 0.5=related, 0.1=different population>,
       "interventionMatch":  <0.0-1.0: 1.0=paper directly studies the exact intervention in the query, 0.5=related, 0.1=tangential>,
-      "fundingConcern":     <true only if abstract explicitly states industry funding with clear commercial conflict>,
+      "funding": {
+        "sources": ["<funding source 1>", "<funding source 2>"],
+        "categories": ["<government|industry|foundation|academic|mixed|unknown>"],
+        "biasRisk": "<low|moderate|high>",
+        "details": "<brief funding note if mentioned in abstract>",
+        "industrySponsored": <true/false>
+      },
       "outcomes": [
         {
           "name":      "<outcome name>",
@@ -948,6 +1042,23 @@ Return ONLY:
 DESIGN CLASSIFICATION RULES (be accurate):
 - meta: "systematic review", "meta-analysis", "pooled analysis" in abstract
 - rct: "randomized", "randomised", "double-blind", "placebo-controlled"
+- cohort: "cohort", "longitudinal", "prospective", "followed"
+- umbrella: "umbrella review", "review of reviews", "meta-review"
+
+FUNDING EXTRACTION RULES:
+- sources: Extract specific funding organizations mentioned (e.g., ["NIH", "Pfizer Inc", "Wellcome Trust"])
+- categories: Classify each source as government, industry, foundation, academic, mixed, or unknown
+- biasRisk: low=government/foundation only, moderate=mixed funding, high=industry-only or clear conflicts
+- details: Quote exact funding statement if brief (max 15 words)
+- industrySponsored: true only if pharmaceutical, biotech, or device company funding mentioned
+
+FUNDING SOURCE EXAMPLES:
+- government: NIH, NSF, EU Horizon, CIHR, NHMRC, national health agencies
+- industry: pharmaceutical companies, biotech, device manufacturers, food industry
+- foundation: Gates Foundation, Wellcome Trust, Robert Wood Johnson, private foundations
+- academic: university grants, institutional funding, academic societies
+- mixed: combination of above categories
+- unknown: no funding mentioned or "funding information not available"
 - cohort: "prospective cohort", "longitudinal", "follow-up study"
 - cross_sectional: "cross-sectional", "survey"
 - obs: "observational" without specifying type
@@ -2011,6 +2122,10 @@ app.post('/api/search', async (req, res) => {
     ]);
     console.log(`  Extracted: ${extractions.length} outcome sets`);
 
+    // ── FUNDING TRANSPARENCY ANALYSIS ─────────────────────────────────
+    const fundingAnalysis = analyzeFundingTransparency(extractions);
+    console.log(`  Funding analysis: ${fundingAnalysis.totalStudies} studies, ${fundingAnalysis.biasRisk} bias risk`);
+
     // Attach extraction data back to papers for the frontend
     validatedPapers.forEach(p => {
       const ex = extractions.find(e => {
@@ -2079,6 +2194,7 @@ app.post('/api/search', async (req, res) => {
         domain:      frame.domain,
       },
       papers: validatedPapers,
+      fundingAnalysis: fundingAnalysis,
       analysis: {
         verdict,
         summary,

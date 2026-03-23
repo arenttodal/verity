@@ -790,16 +790,16 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
   position: absolute;
   top: calc(100% + 12px);
   right: 0;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(12, 14, 22, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   padding: 4px 0;
   min-width: 280px;
   box-shadow: 
-    0 1px 2px rgba(0, 0, 0, 0.1),
-    0 8px 32px rgba(0, 0, 0, 0.15),
-    0 24px 64px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(20px) saturate(1.8);
+    0 1px 2px rgba(0, 0, 0, 0.2),
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 24px 64px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(20px) saturate(1.2);
   display: none;
   z-index: 1000;
   animation: dropdownFadeIn 0.15s ease-out;
@@ -826,7 +826,7 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
 }
 
 .settings-section + .settings-section {
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
   margin-top: 0;
   padding-top: 6px;
 }
@@ -844,19 +844,19 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
 }
 
 .settings-option:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(255, 255, 255, 0.04);
   transform: none;
 }
 
 .settings-option:active {
-  background: rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.08);
   transition: all 0.06s;
 }
 
 .settings-option input[type="checkbox"] {
   width: 16px;
   height: 16px;
-  border: 1.5px solid rgba(0, 0, 0, 0.25);
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
   border-radius: 4px;
   background: transparent;
   cursor: pointer;
@@ -868,8 +868,8 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
 }
 
 .settings-option input[type="checkbox"]:checked {
-  background: #2563eb;
-  border-color: #2563eb;
+  background: #4e98c8;
+  border-color: #4e98c8;
 }
 
 .settings-option input[type="checkbox"]:checked::after {
@@ -885,7 +885,7 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
 }
 
 .settings-option input[type="checkbox"]:hover {
-  border-color: rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 .settings-option-content {
@@ -894,21 +894,22 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
 }
 
 .settings-label {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Instrument Sans', -apple-system, sans-serif;
   font-size: 14px;
   font-weight: 500;
-  color: rgba(0, 0, 0, 0.9);
+  color: rgba(255, 255, 255, 0.9);
   line-height: 1.3;
   margin: 0;
 }
 
 .settings-desc {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 12px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
   font-weight: 400;
-  color: rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.45);
   margin: 2px 0 0 0;
   line-height: 1.3;
+  letter-spacing: 0.01em;
 }
 
 /* ── LOADING SEQUENCE ── */
@@ -1341,6 +1342,17 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
         <span class="div-bolt">⚡</span>
         <span class="div-text"><strong>+8% divergence.</strong> The media average sits noticeably further toward "Beneficial" than the quality-weighted science average — coverage overstates the current consensus.</span>
       </div>
+    </div>
+  </div>
+
+  <!-- FUNDING TRANSPARENCY SECTION -->
+  <div class="section" id="fundingSection" style="display:none;">
+    <div class="section-head">
+      <div class="section-title">Funding Transparency</div>
+      <div class="section-sub">Research funding sources & bias assessment</div>
+    </div>
+    <div class="section-body">
+      <div id="fundingContent"></div>
     </div>
   </div>
 
@@ -2368,13 +2380,110 @@ function mediaStanceToX(stance, weight) {
 }
 
 // ── Main data population ──────────────────────────────────────────
+// ── FUNDING TRANSPARENCY DISPLAY ──────────────────────────────────
+function displayFundingAnalysis(fundingData) {
+  if (!fundingData || fundingData.totalStudies === 0) {
+    document.getElementById('fundingSection').style.display = 'none';
+    return;
+  }
+  
+  document.getElementById('fundingSection').style.display = 'block';
+  
+  const getBiasColor = (risk) => {
+    switch(risk) {
+      case 'low': return '#4e98c8';
+      case 'moderate': return '#c87d3a';
+      case 'high': return '#cc5c5c';
+      default: return '#666';
+    }
+  };
+  
+  const getBiasIcon = (risk) => {
+    switch(risk) {
+      case 'low': return '✅';
+      case 'moderate': return '⚠️';
+      case 'high': return '🚨';
+      default: return '❓';
+    }
+  };
+  
+  const foundationPct = Math.round((fundingData.categories.foundation / fundingData.totalStudies) * 100);
+  const academicPct = Math.round((fundingData.categories.academic / fundingData.totalStudies) * 100);
+  const mixedPct = Math.round((fundingData.categories.mixed / fundingData.totalStudies) * 100);
+  
+  let fundingBreakdown = `
+    <div style="margin-bottom: 16px;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <span style="font-size: 16px;">${getBiasIcon(fundingData.biasRisk)}</span>
+        <strong>Overall Bias Risk: </strong>
+        <span style="color: ${getBiasColor(fundingData.biasRisk)}; font-weight: 600;">
+          ${fundingData.biasRisk.toUpperCase()}
+        </span>
+      </div>
+      <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">
+        Analysis of ${fundingData.totalStudies} studies
+      </div>
+    </div>
+    
+    <div style="margin-bottom: 16px;">
+      <div style="margin-bottom: 8px;"><strong>📊 Funding Breakdown:</strong></div>
+      <div style="font-size: 12px; line-height: 1.4;">
+        ${fundingData.governmentPct > 0 ? `<div>🏛️ Government: <strong>${fundingData.governmentPct}%</strong></div>` : ''}
+        ${fundingData.industryPct > 0 ? `<div>🏭 Industry: <strong>${fundingData.industryPct}%</strong></div>` : ''}
+        ${foundationPct > 0 ? `<div>🏢 Foundation: <strong>${foundationPct}%</strong></div>` : ''}
+        ${academicPct > 0 ? `<div>🎓 Academic: <strong>${academicPct}%</strong></div>` : ''}
+        ${mixedPct > 0 ? `<div>🔄 Mixed: <strong>${mixedPct}%</strong></div>` : ''}
+        ${fundingData.unknownPct > 0 ? `<div style="color: var(--text-muted);">❓ Unknown: <strong>${fundingData.unknownPct}%</strong></div>` : ''}
+      </div>
+    </div>
+  `;
+  
+  // Add specific funding sources if available
+  if (fundingData.fundingSources && fundingData.fundingSources.length > 0) {
+    const topSources = fundingData.fundingSources.slice(0, 8); // Show top 8 sources
+    fundingBreakdown += `
+      <div style="margin-bottom: 16px;">
+        <div style="margin-bottom: 8px;"><strong>💰 Key Funders:</strong></div>
+        <div style="font-size: 11px; line-height: 1.3; color: var(--text-muted);">
+          ${topSources.join(', ')}${fundingData.fundingSources.length > 8 ? `, +${fundingData.fundingSources.length - 8} more` : ''}
+        </div>
+      </div>
+    `;
+  }
+  
+  // Add bias alerts
+  if (fundingData.biasAlerts && fundingData.biasAlerts.length > 0) {
+    fundingBreakdown += `
+      <div style="padding: 12px; background: rgba(200, 125, 58, 0.1); border-left: 3px solid #c87d3a; border-radius: 4px;">
+        <div style="font-size: 12px; font-weight: 600; margin-bottom: 6px; color: #c87d3a;">⚠️ Transparency Alerts</div>
+        <div style="font-size: 11px; line-height: 1.4; color: var(--text-muted);">
+          ${fundingData.biasAlerts.map(alert => `• ${alert}`).join('<br>')}
+        </div>
+      </div>
+    `;
+  } else {
+    fundingBreakdown += `
+      <div style="padding: 12px; background: rgba(78, 152, 200, 0.1); border-left: 3px solid #4e98c8; border-radius: 4px;">
+        <div style="font-size: 11px; color: var(--text-muted);">
+          ✅ Good funding transparency - no major bias concerns detected
+        </div>
+      </div>
+    `;
+  }
+  
+  document.getElementById('fundingContent').innerHTML = fundingBreakdown;
+}
+
 function populateFromData(data) {
-  const { queryMeta, papers, analysis, media, mediaAnalysis, meta, divergenceAnalysis } = data;
+  const { queryMeta, papers, analysis, media, mediaAnalysis, meta, divergenceAnalysis, fundingAnalysis } = data;
 
   // 1. Query title + certainty badge
   document.getElementById('queryTitle').textContent = queryMeta.plain || '';
   // Save to local history
   if (queryMeta.plain) saveToHistory(queryMeta.plain);
+
+  // 2. Display funding transparency analysis
+  displayFundingAnalysis(fundingAnalysis);
 
   // Certainty badge — two distinct signals: directional confidence + causal certainty
   const certainty      = analysis.debate?.certainty       || meta?.certainty       || 'Very low';
