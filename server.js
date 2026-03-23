@@ -626,6 +626,9 @@ function parsePubMedXML(xml) {
       .map(x => stripHtml(x[1])).join(' ').trim();
     if (abstract.length < 80) continue;
 
+    // Extract funding information from PubMed grants
+    const fundingData = extractPubMedFunding(a);
+
     const yearM  = a.match(/<PubDate>[\s\S]*?<Year>(\d{4})<\/Year>/);
     const jM     = a.match(/<ISOAbbreviation>([\s\S]*?)<\/ISOAbbreviation>/) ||
                    a.match(/<Title>([\s\S]*?)<\/Title>/);
@@ -649,9 +652,86 @@ function parsePubMedXML(xml) {
       weight:    pmDesign === 'meta' ? 4 : pmDesign === 'rct' ? 3 : 2,
       design:    pmDesign,
       source:    'pubmed',
+      fundingData: fundingData
     });
   }
   return papers;
+}
+
+// Extract funding information from PubMed XML grants
+function extractPubMedFunding(xmlContent) {
+  const funding = {
+    sources: [],
+    categories: [],
+    details: null,
+    biasRisk: 'unknown',
+    industrySponsored: false
+  };
+
+  // Extract from GrantList
+  const grantMatches = [...xmlContent.matchAll(/<Grant>([\s\S]*?)<\/Grant>/g)];
+  
+  grantMatches.forEach(grantMatch => {
+    const grant = grantMatch[1];
+    
+    // Extract agency
+    const agencyMatch = grant.match(/<Agency>([\s\S]*?)<\/Agency>/);
+    if (agencyMatch) {
+      const agency = stripHtml(agencyMatch[1]).trim();
+      if (agency && !funding.sources.includes(agency)) {
+        funding.sources.push(agency);
+        
+        const agencyLower = agency.toLowerCase();
+        if (agencyLower.includes('nih') || agencyLower.includes('national institute') ||
+            agencyLower.includes('nsf') || agencyLower.includes('cdc') ||
+            agencyLower.includes('government') || agencyLower.includes('ministry') ||
+            agencyLower.includes('council') || agencyLower.includes('nhmrc') ||
+            agencyLower.includes('cihr') || agencyLower.includes('va ')) {
+          funding.categories.push('government');
+        } else if (agencyLower.includes('foundation') || agencyLower.includes('trust') ||
+                  agencyLower.includes('charity')) {
+          funding.categories.push('foundation');
+        } else if (agencyLower.includes('university') || agencyLower.includes('college') ||
+                  agencyLower.includes('medical center')) {
+          funding.categories.push('academic');
+        } else if (agencyLower.includes('pharmaceut') || agencyLower.includes('biotech') ||
+                  agencyLower.includes('inc') || agencyLower.includes('corp') ||
+                  agencyLower.includes('ltd') || agencyLower.includes('pfizer') ||
+                  agencyLower.includes('merck') || agencyLower.includes('novartis')) {
+          funding.categories.push('industry');
+          funding.industrySponsored = true;
+        } else {
+          funding.categories.push('unknown');
+        }
+      }
+    }
+    
+    // Extract country for additional context
+    const countryMatch = grant.match(/<Country>([\s\S]*?)<\/Country>/);
+    if (countryMatch) {
+      const country = stripHtml(countryMatch[1]).trim();
+      if (country && funding.sources.length > 0) {
+        funding.details = `${funding.sources[funding.sources.length - 1]} (${country})`;
+      }
+    }
+  });
+
+  // Determine bias risk
+  const industryCount = funding.categories.filter(c => c === 'industry').length;
+  const governmentCount = funding.categories.filter(c => c === 'government').length;
+  const totalFunding = funding.categories.length;
+
+  if (totalFunding === 0) {
+    funding.biasRisk = 'unknown';
+  } else if (industryCount / totalFunding > 0.6) {
+    funding.biasRisk = 'high';
+  } else if (industryCount > 0 || governmentCount === 0) {
+    funding.biasRisk = 'moderate';
+  } else {
+    funding.biasRisk = 'low';
+  }
+
+  return funding;
 }
 
 // SOURCE C: OpenAlex — broadest coverage
@@ -662,7 +742,7 @@ async function fetchOpenAlex(query, limit = 15) {
     filter:     `publication_year:${yearFrom}-${new Date().getFullYear()},has_abstract:true`,
     sort:       'relevance_score:desc',
     'per-page': String(limit),
-    select:     'id,title,abstract_inverted_index,publication_year,primary_location,cited_by_count,doi,type',
+    select:     'id,title,abstract_inverted_index,publication_year,primary_location,cited_by_count,doi,type,grants,authorships',
     mailto:     'hello@verity.science',
   });
 
@@ -678,6 +758,10 @@ async function fetchOpenAlex(query, limit = 15) {
         for (const l of locs) pos[l] = word;
     const abstract = pos.filter(Boolean).join(' ').trim();
     if (abstract.length < 80) return null;
+    
+    // Extract funding data from OpenAlex
+    const fundingData = extractOpenAlexFunding(w);
+    
     const isReview = (w.type || '').toLowerCase().includes('review');
     const oaCites  = w.cited_by_count || 0;
     const oaCitW   = oaCites >= 400 ? 5 : oaCites >= 150 ? 4 : oaCites >= 50 ? 3 : oaCites >= 10 ? 2 : 1;
@@ -693,8 +777,206 @@ async function fetchOpenAlex(query, limit = 15) {
       weight:    Math.min(5, oaDesign === 'meta' ? oaCitW + 1 : oaCitW),
       design:    oaDesign,
       source:    'openalex',
+      fundingData: fundingData
     };
   }).filter(Boolean);
+}
+
+// Extract funding information from OpenAlex API response
+function extractOpenAlexFunding(work) {
+  const funding = {
+    sources: [],
+    categories: [],
+    details: null,
+    biasRisk: 'unknown',
+    industrySponsored: false
+  };
+
+  // Extract from grants field
+  if (work.grants && work.grants.length > 0) {
+    work.grants.forEach(grant => {
+      if (grant.funder_display_name) {
+        funding.sources.push(grant.funder_display_name);
+        
+        // Categorize funding source
+        const funderName = grant.funder_display_name.toLowerCase();
+        if (funderName.includes('nih') || funderName.includes('national institute') || 
+            funderName.includes('nsf') || funderName.includes('government') ||
+            funderName.includes('ministry') || funderName.includes('council') ||
+            funderName.includes('nhmrc') || funderName.includes('cihr')) {
+          funding.categories.push('government');
+        } else if (funderName.includes('foundation') || funderName.includes('trust') ||
+                  funderName.includes('charity') || funderName.includes('gates') ||
+                  funderName.includes('wellcome')) {
+          funding.categories.push('foundation');
+        } else if (funderName.includes('university') || funderName.includes('college') ||
+                  (funderName.includes('institute') && !funderName.includes('national'))) {
+          funding.categories.push('academic');
+        } else if (funderName.includes('pharmaceut') || funderName.includes('biotech') ||
+                  funderName.includes(' inc') || funderName.includes('corp') ||
+                  funderName.includes(' ltd') || funderName.includes('company') ||
+                  funderName.includes('pfizer') || funderName.includes('novartis') ||
+                  funderName.includes('merck') || funderName.includes('roche')) {
+          funding.categories.push('industry');
+          funding.industrySponsored = true;
+        } else {
+          funding.categories.push('unknown');
+        }
+      }
+    });
+  }
+
+  // Extract from author institutions
+  if (work.authorships && work.authorships.length > 0) {
+    work.authorships.forEach(authorship => {
+      if (authorship.institutions) {
+        authorship.institutions.forEach(institution => {
+          const instName = institution.display_name?.toLowerCase() || '';
+          if (instName.includes('pfizer') || instName.includes('novartis') ||
+              instName.includes('merck') || instName.includes('roche') ||
+              instName.includes('bristol myers') || instName.includes('abbvie') ||
+              instName.includes('gsk') || instName.includes('sanofi')) {
+            if (!funding.sources.includes(institution.display_name)) {
+              funding.sources.push(institution.display_name);
+              funding.categories.push('industry');
+              funding.industrySponsored = true;
+            }
+          }
+        });
+      }
+    });
+  }
+
+  // Determine bias risk
+  const industryCount = funding.categories.filter(c => c === 'industry').length;
+  const governmentCount = funding.categories.filter(c => c === 'government').length;
+  const totalFunding = funding.categories.length;
+
+  if (totalFunding === 0) {
+    funding.biasRisk = 'unknown';
+  } else if (industryCount / totalFunding > 0.6) {
+    funding.biasRisk = 'high';
+  } else if (industryCount > 0 || governmentCount === 0) {
+    funding.biasRisk = 'moderate';  
+  } else {
+    funding.biasRisk = 'low';
+  }
+
+  return funding;
+}
+
+// Crossref funding lookup for additional funding data
+async function fetchCrossrefFunding(doi) {
+  if (!doi) return null;
+  
+  try {
+    const res = await fetch(`https://api.crossref.org/works/${doi}`, {
+      headers: { 'User-Agent': 'Verity/1.0 (mailto:hello@verity.science)' },
+      signal: AbortSignal.timeout(8000)
+    });
+    
+    if (!res.ok) return null;
+    const data = await res.json();
+    
+    const funding = {
+      sources: [],
+      categories: [],
+      details: null,
+      biasRisk: 'unknown',
+      industrySponsored: false
+    };
+    
+    if (data.message.funder && data.message.funder.length > 0) {
+      data.message.funder.forEach(funder => {
+        if (funder.name) {
+          funding.sources.push(funder.name);
+          
+          const funderName = funder.name.toLowerCase();
+          if (funderName.includes('nih') || funderName.includes('national institute') ||
+              funderName.includes('nsf') || funderName.includes('government') ||
+              funderName.includes('ministry') || funderName.includes('council')) {
+            funding.categories.push('government');
+          } else if (funderName.includes('foundation') || funderName.includes('trust')) {
+            funding.categories.push('foundation');
+          } else if (funderName.includes('university') || funderName.includes('college')) {
+            funding.categories.push('academic');
+          } else if (funderName.includes('pharmaceut') || funderName.includes('biotech') ||
+                    funderName.includes(' inc') || funderName.includes('corp')) {
+            funding.categories.push('industry');
+            funding.industrySponsored = true;
+          } else {
+            funding.categories.push('unknown');
+          }
+        }
+      });
+    }
+    
+    return funding;
+  } catch (error) {
+    return null;
+  }
+}
+
+// Merge funding data from multiple sources (API data + AI extraction + Crossref)
+function mergeFundingData(extraction, apiFundingData) {
+  const merged = {
+    sources: [],
+    categories: [],
+    details: null,
+    biasRisk: 'unknown',
+    industrySponsored: false,
+    grantNumbers: []
+  };
+
+  // Start with API funding data (OpenAlex/PubMed)
+  if (apiFundingData) {
+    if (apiFundingData.sources) merged.sources.push(...apiFundingData.sources);
+    if (apiFundingData.categories) merged.categories.push(...apiFundingData.categories);
+    if (apiFundingData.industrySponsored) merged.industrySponsored = true;
+    if (apiFundingData.biasRisk && apiFundingData.biasRisk !== 'unknown') merged.biasRisk = apiFundingData.biasRisk;
+  }
+
+  // Merge with AI extraction
+  if (extraction && extraction.funding) {
+    if (extraction.funding.sources) {
+      extraction.funding.sources.forEach(source => {
+        if (source && !merged.sources.includes(source)) {
+          merged.sources.push(source);
+        }
+      });
+    }
+    if (extraction.funding.categories) merged.categories.push(...extraction.funding.categories);
+    if (extraction.funding.grantNumbers) merged.grantNumbers.push(...extraction.funding.grantNumbers);
+    if (extraction.funding.industrySponsored) merged.industrySponsored = true;
+    if (extraction.funding.details) merged.details = extraction.funding.details;
+    
+    // Use AI bias assessment if API didn't provide one
+    if (merged.biasRisk === 'unknown' && extraction.funding.biasRisk) {
+      merged.biasRisk = extraction.funding.biasRisk;
+    }
+  }
+
+  // Deduplicate and finalize
+  merged.sources = [...new Set(merged.sources)];
+  merged.categories = [...new Set(merged.categories)];
+  merged.grantNumbers = [...new Set(merged.grantNumbers)];
+
+  // Final bias risk assessment based on all data
+  if (merged.biasRisk === 'unknown' && merged.categories.length > 0) {
+    const industryCount = merged.categories.filter(c => c === 'industry').length;
+    const governmentCount = merged.categories.filter(c => c === 'government').length;
+    const totalFunding = merged.categories.length;
+
+    if (industryCount / totalFunding > 0.6) {
+      merged.biasRisk = 'high';
+    } else if (industryCount > 0 || governmentCount === 0) {
+      merged.biasRisk = 'moderate';
+    } else {
+      merged.biasRisk = 'low';
+    }
+  }
+
+  return merged;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -882,8 +1164,8 @@ Format: [1] R, [2] I, [3] R, etc.`
 }
 
 // ─────────────────────────────────────────────────────────────────
-//  FUNDING TRANSPARENCY ANALYSIS
-//  Aggregates funding sources and assesses bias risk across studies
+//  FUNDING TRANSPARENCY ANALYSIS WITH ENHANCED DATA SOURCES
+//  Aggregates funding sources from multiple APIs and AI analysis
 // ─────────────────────────────────────────────────────────────────
 function analyzeFundingTransparency(extractions) {
   const fundingSources = [];
@@ -891,44 +1173,64 @@ function analyzeFundingTransparency(extractions) {
   const biasRisks = { low: 0, moderate: 0, high: 0 };
   const industryStudies = [];
   const governmentStudies = [];
+  const allGrantNumbers = [];
   
   extractions.forEach(ex => {
-    if (ex.funding) {
-      // Collect all sources
-      if (ex.funding.sources) {
-        ex.funding.sources.forEach(source => {
-          if (source && source !== 'unknown') {
-            fundingSources.push(source);
-          }
-        });
-      }
-      
-      // Count categories
-      if (ex.funding.categories) {
-        ex.funding.categories.forEach(category => {
-          if (fundingCategories.hasOwnProperty(category)) {
-            fundingCategories[category]++;
-          }
-        });
-      }
-      
-      // Count bias risk
-      if (biasRisks.hasOwnProperty(ex.funding.biasRisk)) {
-        biasRisks[ex.funding.biasRisk]++;
-      }
-      
-      // Track industry vs government studies
-      if (ex.funding.industrySponsored) {
-        industryStudies.push(ex.ref);
-      }
-      if (ex.funding.categories && ex.funding.categories.includes('government')) {
-        governmentStudies.push(ex.ref);
-      }
+    let fundingToUse = null;
+    
+    // Use merged funding data if available, otherwise fall back to individual sources
+    if (ex.mergedFunding) {
+      fundingToUse = ex.mergedFunding;
+    } else if (ex.funding) {
+      fundingToUse = ex.funding;
+    } else {
+      // Mark as unknown funding
+      fundingCategories.unknown++;
+      return;
+    }
+    
+    // Collect sources
+    if (fundingToUse.sources) {
+      fundingToUse.sources.forEach(source => {
+        if (source && source !== 'unknown') {
+          fundingSources.push(source);
+        }
+      });
+    }
+    
+    // Collect grant numbers
+    if (fundingToUse.grantNumbers) {
+      allGrantNumbers.push(...fundingToUse.grantNumbers);
+    }
+    
+    // Count categories
+    if (fundingToUse.categories && fundingToUse.categories.length > 0) {
+      fundingToUse.categories.forEach(category => {
+        if (fundingCategories.hasOwnProperty(category)) {
+          fundingCategories[category]++;
+        }
+      });
+    } else {
+      fundingCategories.unknown++;
+    }
+    
+    // Count bias risk
+    if (fundingToUse.biasRisk && biasRisks.hasOwnProperty(fundingToUse.biasRisk)) {
+      biasRisks[fundingToUse.biasRisk]++;
+    }
+    
+    // Track industry vs government studies
+    if (fundingToUse.industrySponsored) {
+      industryStudies.push(ex.ref);
+    }
+    if (fundingToUse.categories && fundingToUse.categories.includes('government')) {
+      governmentStudies.push(ex.ref);
     }
   });
 
-  // Calculate unique funding sources
+  // Calculate unique funding sources and grant numbers
   const uniqueSources = [...new Set(fundingSources)];
+  const uniqueGrants = [...new Set(allGrantNumbers)];
   
   // Assess overall bias risk
   const totalStudies = extractions.length;
@@ -943,21 +1245,25 @@ function analyzeFundingTransparency(extractions) {
     overallBiasRisk = 'moderate';
   }
   
-  // Identify potential bias patterns
+  // Enhanced bias alerts with more sophisticated detection
   const biasAlerts = [];
   if (industryPct > 60) {
     biasAlerts.push(`High industry funding: ${Math.round(industryPct)}% of studies`);
   }
-  if (unknownPct > 50) {
+  if (unknownPct > 80) {
     biasAlerts.push(`Limited transparency: ${Math.round(unknownPct)}% funding unknown`);
   }
-  if (fundingCategories.industry > 0 && fundingCategories.government === 0) {
-    biasAlerts.push('No independent government-funded studies found');
+  if (fundingCategories.industry > 0 && fundingCategories.government === 0 && fundingCategories.foundation === 0) {
+    biasAlerts.push('No independent non-industry studies found');
+  }
+  if (uniqueSources.length > 0 && uniqueSources.filter(s => s.toLowerCase().includes('pharma')).length > 2) {
+    biasAlerts.push('Multiple pharmaceutical company funders detected');
   }
 
   return {
     totalStudies,
     fundingSources: uniqueSources,
+    grantNumbers: uniqueGrants,
     categories: fundingCategories,
     biasRisks,
     biasRisk: overallBiasRisk,
@@ -965,7 +1271,12 @@ function analyzeFundingTransparency(extractions) {
     industryPct: Math.round(industryPct),
     governmentPct: Math.round(governmentPct),
     independentPct: Math.round(governmentPct + (fundingCategories.foundation / totalStudies) * 100),
-    unknownPct: Math.round(unknownPct)
+    unknownPct: Math.round(unknownPct),
+    dataQuality: {
+      hasApiData: uniqueSources.length > (totalStudies * 0.1), // >10% have API funding data
+      hasGrantNumbers: uniqueGrants.length > 0,
+      transparencyScore: Math.round(((totalStudies - fundingCategories.unknown) / totalStudies) * 100)
+    }
   };
 }
 
@@ -1024,7 +1335,8 @@ Return ONLY:
         "categories": ["<government|industry|foundation|academic|mixed|unknown>"],
         "biasRisk": "<low|moderate|high>",
         "details": "<brief funding note if mentioned in abstract>",
-        "industrySponsored": <true/false>
+        "industrySponsored": <true/false>,
+        "grantNumbers": ["<grant numbers if mentioned>"]
       },
       "outcomes": [
         {
@@ -1051,6 +1363,7 @@ FUNDING EXTRACTION RULES:
 - biasRisk: low=government/foundation only, moderate=mixed funding, high=industry-only or clear conflicts
 - details: Quote exact funding statement if brief (max 15 words)
 - industrySponsored: true only if pharmaceutical, biotech, or device company funding mentioned
+- grantNumbers: Extract any grant numbers (e.g., "R01-DK123456", "K23-HL098765")
 
 FUNDING SOURCE EXAMPLES:
 - government: NIH, NSF, EU Horizon, CIHR, NHMRC, national health agencies
@@ -1059,6 +1372,12 @@ FUNDING SOURCE EXAMPLES:
 - academic: university grants, institutional funding, academic societies
 - mixed: combination of above categories
 - unknown: no funding mentioned or "funding information not available"
+
+BIAS ASSESSMENT:
+- Look for conflicts of interest statements
+- Industry funding of studies testing their own products = high bias risk
+- Government/foundation funding = low bias risk
+- Mixed funding or unclear sources = moderate bias risk
 - cohort: "prospective cohort", "longitudinal", "follow-up study"
 - cross_sectional: "cross-sectional", "survey"
 - obs: "observational" without specifying type
@@ -2138,6 +2457,10 @@ app.post('/api/search', async (req, res) => {
         p.design     = ex.design    || p.design;
         p.sampleSize = ex.sampleSize;
         p.extractedOutcomes = ex.outcomes;
+        
+        // Merge funding data from all sources (API + AI extraction)
+        p.fundingAnalysis = mergeFundingData(ex, p.fundingData);
+        ex.mergedFunding = p.fundingAnalysis; // Store for aggregation analysis
       }
     });
 
