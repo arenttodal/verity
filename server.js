@@ -796,7 +796,6 @@ async function fetchOpenAlexFundingData(openalexId) {
     return null;
   }
 }
-}
 
 // Extract funding information from OpenAlex API response
 function extractOpenAlexFunding(work) {
