@@ -674,11 +674,13 @@ function extractPubMedFunding(xmlContent) {
   
   grantMatches.forEach((grantMatch, i) => {
     const grant = grantMatch[1];
+    console.log(`      Grant ${i+1}: ${grant.slice(0, 100)}...`);
     
     // Extract agency
     const agencyMatch = grant.match(/<Agency>([\s\S]*?)<\/Agency>/);
     if (agencyMatch) {
       const agency = stripHtml(agencyMatch[1]).trim();
+      console.log(`        Found agency: ${agency}`);
       if (agency && !funding.sources.includes(agency)) {
         funding.sources.push(agency);
         
@@ -705,6 +707,8 @@ function extractPubMedFunding(xmlContent) {
           funding.categories.push('unknown');
         }
       }
+    } else {
+      console.log(`        No agency found in grant`);
     }
     
     // Extract country for additional context
@@ -716,6 +720,8 @@ function extractPubMedFunding(xmlContent) {
       }
     }
   });
+
+  console.log(`    Final funding extracted: sources=${funding.sources.length}, categories=${funding.categories.length}`);
 
   // Determine bias risk
   const industryCount = funding.categories.filter(c => c === 'industry').length;
@@ -944,9 +950,11 @@ function mergeFundingData(extraction, apiFundingData) {
     grantNumbers: []
   };
 
+  console.log(`    Merging: extraction=${JSON.stringify(extraction?.funding)}, api=${JSON.stringify(apiFundingData)}`);
+
   // Start with API funding data (OpenAlex/PubMed)
-  if (apiFundingData) {
-    if (apiFundingData.sources) merged.sources.push(...apiFundingData.sources);
+  if (apiFundingData && apiFundingData.sources && apiFundingData.sources.length > 0) {
+    merged.sources.push(...apiFundingData.sources);
     if (apiFundingData.categories) merged.categories.push(...apiFundingData.categories);
     if (apiFundingData.industrySponsored) merged.industrySponsored = true;
     if (apiFundingData.biasRisk && apiFundingData.biasRisk !== 'unknown') merged.biasRisk = apiFundingData.biasRisk;
@@ -954,28 +962,36 @@ function mergeFundingData(extraction, apiFundingData) {
 
   // Merge with AI extraction
   if (extraction && extraction.funding) {
-    if (extraction.funding.sources) {
+    if (extraction.funding.sources && extraction.funding.sources.length > 0) {
       extraction.funding.sources.forEach(source => {
-        if (source && !merged.sources.includes(source)) {
+        if (source && source !== 'unknown' && !merged.sources.includes(source)) {
           merged.sources.push(source);
         }
       });
     }
-    if (extraction.funding.categories) merged.categories.push(...extraction.funding.categories);
+    if (extraction.funding.categories && extraction.funding.categories.length > 0) {
+      merged.categories.push(...extraction.funding.categories.filter(c => c !== 'unknown'));
+    }
     if (extraction.funding.grantNumbers) merged.grantNumbers.push(...extraction.funding.grantNumbers);
     if (extraction.funding.industrySponsored) merged.industrySponsored = true;
     if (extraction.funding.details) merged.details = extraction.funding.details;
     
     // Use AI bias assessment if API didn't provide one
-    if (merged.biasRisk === 'unknown' && extraction.funding.biasRisk) {
+    if (merged.biasRisk === 'unknown' && extraction.funding.biasRisk && extraction.funding.biasRisk !== 'unknown') {
       merged.biasRisk = extraction.funding.biasRisk;
     }
   }
 
   // Deduplicate and finalize
   merged.sources = [...new Set(merged.sources)];
-  merged.categories = [...new Set(merged.categories)];
+  merged.categories = [...new Set(merged.categories.filter(c => c !== 'unknown'))];
   merged.grantNumbers = [...new Set(merged.grantNumbers)];
+
+  // If we have no real funding data, return null instead of empty object
+  if (merged.sources.length === 0 && merged.categories.length === 0) {
+    console.log(`    Merge result: null (no funding found)`);
+    return null;
+  }
 
   // Final bias risk assessment based on all data
   if (merged.biasRisk === 'unknown' && merged.categories.length > 0) {
@@ -992,6 +1008,7 @@ function mergeFundingData(extraction, apiFundingData) {
     }
   }
 
+  console.log(`    Merge result: ${JSON.stringify(merged)}`);
   return merged;
 }
 
