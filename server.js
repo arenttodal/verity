@@ -742,7 +742,7 @@ async function fetchOpenAlex(query, limit = 15) {
     filter:     `publication_year:${yearFrom}-${new Date().getFullYear()},has_abstract:true`,
     sort:       'relevance_score:desc',
     'per-page': String(limit),
-    select:     'id,title,abstract_inverted_index,publication_year,primary_location,cited_by_count,doi,type,grants,authorships',
+    select:     'id,title,abstract_inverted_index,publication_year,primary_location,cited_by_count,doi,type',
     mailto:     'hello@verity.science',
   });
 
@@ -759,13 +759,11 @@ async function fetchOpenAlex(query, limit = 15) {
     const abstract = pos.filter(Boolean).join(' ').trim();
     if (abstract.length < 80) return null;
     
-    // Extract funding data from OpenAlex
-    const fundingData = extractOpenAlexFunding(w);
-    
     const isReview = (w.type || '').toLowerCase().includes('review');
     const oaCites  = w.cited_by_count || 0;
     const oaCitW   = oaCites >= 400 ? 5 : oaCites >= 150 ? 4 : oaCites >= 50 ? 3 : oaCites >= 10 ? 2 : 1;
     const oaDesign = isReview ? 'meta' : 'unknown';
+    
     return {
       title:     stripHtml(w.title || ''),
       abstract,
@@ -777,9 +775,27 @@ async function fetchOpenAlex(query, limit = 15) {
       weight:    Math.min(5, oaDesign === 'meta' ? oaCitW + 1 : oaCitW),
       design:    oaDesign,
       source:    'openalex',
-      fundingData: fundingData
+      openalexId: w.id  // Store OpenAlex ID for funding lookup
     };
   }).filter(Boolean);
+}
+
+// Enhanced OpenAlex funding lookup (separate API call)
+async function fetchOpenAlexFundingData(openalexId) {
+  try {
+    const res = await fetch(`${openalexId}?select=id,grants,authorships`, {
+      signal: AbortSignal.timeout(8000)
+    });
+    
+    if (!res.ok) return null;
+    const work = await res.json();
+    
+    return extractOpenAlexFunding(work);
+  } catch (error) {
+    console.warn(`OpenAlex funding lookup failed for ${openalexId}:`, error.message);
+    return null;
+  }
+}
 }
 
 // Extract funding information from OpenAlex API response
@@ -1316,7 +1332,7 @@ async function extractOutcomes(papers, frame, deepMode = false) {
       system:     'Systematic review data extractor. Extract exactly what is stated in each abstract. Do not add interpretation beyond what is written. Respond ONLY with valid JSON.',
       messages: [{
         role: 'user',
-        content: `Extract structured outcome data from these papers.
+        content: `Extract structured outcome data from these papers. Pay special attention to funding and conflicts of interest.
 
 Query: "${frame.plain}"
 Left claim: "${frame.leftClaim}"
@@ -1370,9 +1386,16 @@ FUNDING EXTRACTION RULES:
 - industrySponsored: true only if pharmaceutical, biotech, or device company funding mentioned
 - grantNumbers: Extract any grant numbers (e.g., "R01-DK123456", "K23-HL098765")
 
+CRITICAL: Look for these industry funding clues:
+- Company names in author affiliations (e.g., "Pfizer Research", "Novartis Pharmaceuticals")
+- Conflict of interest statements mentioning employment or consulting
+- Phrases like "funded by", "sponsored by", "supported by" followed by company names
+- Study registration numbers from company trials
+- Institutional affiliations with pharmaceutical companies
+
 FUNDING SOURCE EXAMPLES:
-- government: NIH, NSF, EU Horizon, CIHR, NHMRC, national health agencies
-- industry: pharmaceutical companies, biotech, device manufacturers, food industry
+- government: NIH, NSF, EU Horizon, CIHR, NHMRC, national health agencies, FDA, CDC
+- industry: Pfizer, Moderna, Novartis, Merck, GSK, pharmaceutical companies, biotech, device manufacturers
 - foundation: Gates Foundation, Wellcome Trust, Robert Wood Johnson, private foundations
 - academic: university grants, institutional funding, academic societies
 - mixed: combination of above categories
@@ -1383,6 +1406,7 @@ BIAS ASSESSMENT:
 - Industry funding of studies testing their own products = high bias risk
 - Government/foundation funding = low bias risk
 - Mixed funding or unclear sources = moderate bias risk
+- Pay special attention to vaccine, drug, and medical device studies
 - cohort: "prospective cohort", "longitudinal", "follow-up study"
 - cross_sectional: "cross-sectional", "survey"
 - obs: "observational" without specifying type
@@ -2447,13 +2471,14 @@ app.post('/api/search', async (req, res) => {
     console.log(`  Extracted: ${extractions.length} outcome sets`);
 
     // ── FUNDING TRANSPARENCY ANALYSIS ─────────────────────────────────
-    // Debug funding data before analysis
-    console.log('  Debugging funding extraction:');
+    console.log(`\n🔍 FUNDING DEBUG START ═══════════════════════`);
     extractions.forEach((ex, i) => {
-      if (ex.funding && (ex.funding.sources?.length > 0 || ex.funding.categories?.length > 0)) {
-        console.log(`    Study ${i+1}: Found funding -`, ex.funding);
-      }
+      console.log(`📋 Study ${i+1}: ${ex.ref || 'no-ref'}`);
+      console.log(`   AI Funding: ${JSON.stringify(ex.funding || 'NONE')}`);
+      console.log(`   DB Funding: ${JSON.stringify(ex.fundingData || 'NONE')}`);
+      console.log(`   Merged: ${JSON.stringify(ex.mergedFunding || 'NONE')}`);
     });
+    console.log(`🔍 FUNDING DEBUG END ═══════════════════════\n`);
     
     const fundingAnalysis = analyzeFundingTransparency(extractions);
     console.log(`  Funding analysis: ${fundingAnalysis.totalStudies} studies, ${fundingAnalysis.biasRisk} bias risk`);
@@ -2476,6 +2501,20 @@ app.post('/api/search', async (req, res) => {
         ex.mergedFunding = p.fundingAnalysis; // Store for aggregation analysis
       }
     });
+
+    // Background enhancement: Fetch OpenAlex funding data for OpenAlex papers
+    const openAlexPapers = validatedPapers.filter(p => p.openalexId);
+    if (openAlexPapers.length > 0) {
+      console.log(`  Background: Fetching funding for ${openAlexPapers.length} OpenAlex papers...`);
+      // Don't wait for this - do it in background
+      Promise.allSettled(openAlexPapers.slice(0, 5).map(async (paper) => {
+        const fundingData = await fetchOpenAlexFundingData(paper.openalexId);
+        if (fundingData && fundingData.sources?.length > 0) {
+          paper.fundingAnalysis = mergeFundingData({ funding: fundingData }, paper.fundingAnalysis);
+          console.log(`    Enhanced: ${paper.title.slice(0, 40)}... - ${fundingData.sources.join(', ')}`);
+        }
+      })).catch(() => {});
+    }
 
     // ── 5. Deterministic scoring ──────────────────────────────────
     const scoring = computeConsensus(extractions);
