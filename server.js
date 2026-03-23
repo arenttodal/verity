@@ -54,32 +54,34 @@ if (process.env.DATABASE_URL) {
   db.on('error', err => console.error('DB pool error:', err.message));
 }
 
+// Import the new migration system
+const VerityDatabaseMigration = require('./database-migration.js');
+const IncrementalWorker = require('./incremental-worker.js');
+
+// Initialize the worker
+let incrementalWorker = null;
+
 async function initDB() {
   if (!db) return;
+  
   try {
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS query_cache (
-        id           SERIAL PRIMARY KEY,
-        query_hash   CHAR(64) UNIQUE NOT NULL,
-        query_raw    TEXT NOT NULL,
-        query_plain  TEXT,
-        result_json  JSONB NOT NULL,
-        paper_count  INT,
-        certainty    TEXT,
-        score        INT,
-        hit_count    INT DEFAULT 1,
-        created_at   TIMESTAMPTZ DEFAULT NOW(),
-        updated_at   TIMESTAMPTZ DEFAULT NOW()
-      )
-    `);
-    await db.query(`
-      CREATE INDEX IF NOT EXISTS idx_query_hash ON query_cache(query_hash);
-      CREATE INDEX IF NOT EXISTS idx_updated    ON query_cache(updated_at);
-    `);
-    console.log('✓ DB cache table ready');
+    const migration = new VerityDatabaseMigration(db);
+    await migration.runMigrations();
+    console.log('✓ Database migrations completed');
+    
+    // Store migration instance for health checks
+    db.migration = migration;
+    
+    // Start incremental worker if database is available
+    if (db && anthropic) {
+      incrementalWorker = new IncrementalWorker(db, anthropic);
+      await incrementalWorker.start();
+      console.log('✓ Incremental evidence worker started');
+    }
+    
   } catch (e) {
-    console.warn('DB init failed:', e.message);
-    db = null; // disable cache if init fails
+    console.warn('DB migration failed:', e.message);
+    db = null; // disable database if migration fails
   }
 }
 
@@ -187,7 +189,194 @@ app.get('/api/cache/stats', async (req, res) => {
 app.get('/', (_, res) => res.sendFile(path.join(__dirname, 'verity.html')));
 app.get('/health', async (_, res) => {
   const dbOk = db ? await db.query('SELECT 1').then(() => true).catch(() => false) : false;
-  res.json({ ok: true, version: '7.0', cache: dbOk ? 'connected' : (db ? 'error' : 'disabled') });
+  
+  // Enhanced health check with migration status
+  let migrationStatus = { status: 'disabled', message: 'Database not configured' };
+  if (db && db.migration) {
+    migrationStatus = await db.migration.checkHealth();
+  }
+  
+  res.json({ 
+    ok: true, 
+    version: '7.0', 
+    cache: dbOk ? 'connected' : (db ? 'error' : 'disabled'),
+    migrations: migrationStatus
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+//  INCREMENTAL EVIDENCE SYSTEM API ENDPOINTS
+// ─────────────────────────────────────────────────────────────────
+
+// System status endpoint
+app.get('/api/incremental/status', async (req, res) => {
+  if (!db) {
+    return res.json({ 
+      status: 'disabled', 
+      message: 'Database not configured' 
+    });
+  }
+
+  try {
+    // Check if incremental tables exist
+    const tableCheck = await db.query(`
+      SELECT table_name FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_name IN ('topics', 'papers', 'topic_papers', 'update_queue', 'system_config')
+    `);
+    
+    const requiredTables = ['topics', 'papers', 'topic_papers', 'update_queue', 'system_config'];
+    const existingTables = tableCheck.rows.map(r => r.table_name);
+    const missingTables = requiredTables.filter(t => !existingTables.includes(t));
+    
+    if (missingTables.length > 0) {
+      return res.json({
+        status: 'incomplete',
+        message: `Missing tables: ${missingTables.join(', ')}`,
+        existing_tables: existingTables
+      });
+    }
+
+    // Get system stats
+    const stats = await Promise.all([
+      db.query('SELECT COUNT(*) as count FROM topics'),
+      db.query('SELECT COUNT(*) as count FROM papers'),
+      db.query('SELECT COUNT(*) as count FROM update_queue WHERE status = $1', ['pending']),
+      db.query('SELECT config_value FROM system_config WHERE config_key = $1', ['incremental_enabled'])
+    ]);
+
+    res.json({
+      status: 'active',
+      message: 'Incremental system is operational',
+      stats: {
+        topics: parseInt(stats[0].rows[0].count),
+        papers: parseInt(stats[1].rows[0].count),
+        pending_updates: parseInt(stats[2].rows[0].count),
+        enabled: stats[3].rows[0]?.config_value === 'true'
+      },
+      tables: existingTables
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+});
+
+// Topic tracking endpoint (called when user enables "Track this topic")
+app.post('/api/incremental/track', async (req, res) => {
+  if (!db) {
+    return res.status(503).json({ error: 'Database not available' });
+  }
+
+  try {
+    const { query, deep_mode } = req.body;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+
+    // Generate query hash
+    const queryHash = crypto.createHash('sha256')
+      .update(query.toLowerCase().trim())
+      .digest('hex');
+
+    // Check if topic already exists
+    const existing = await db.query(
+      'SELECT id, canonical_query FROM topics WHERE query_hash = $1',
+      [queryHash]
+    );
+
+    if (existing.rows.length > 0) {
+      return res.json({
+        success: true,
+        message: 'Topic already being tracked',
+        topic_id: existing.rows[0].id,
+        canonical_query: existing.rows[0].canonical_query
+      });
+    }
+
+    // Create new topic
+    const result = await db.query(`
+      INSERT INTO topics (
+        query_hash, 
+        canonical_query, 
+        plain_query,
+        priority_level,
+        update_frequency_hours
+      ) VALUES ($1, $2, $3, $4, $5)
+      RETURNING id, canonical_query
+    `, [
+      queryHash,
+      query, // TODO: We could frame this with Claude for better canonical form
+      query,
+      deep_mode ? 1 : 2, // Higher priority for deep mode queries
+      deep_mode ? 24 : 168 // More frequent updates for deep mode
+    ]);
+
+    // Schedule initial update
+    await db.query(`
+      INSERT INTO update_queue (
+        topic_id,
+        scheduled_for,
+        priority,
+        update_type
+      ) VALUES ($1, NOW() + INTERVAL '5 minutes', $2, 'initial_analysis')
+    `, [
+      result.rows[0].id,
+      deep_mode ? 1 : 2
+    ]);
+
+    res.json({
+      success: true,
+      message: 'Topic added for tracking',
+      topic_id: result.rows[0].id,
+      canonical_query: result.rows[0].canonical_query
+    });
+
+  } catch (error) {
+    console.error('Error tracking topic:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// List tracked topics
+app.get('/api/incremental/topics', async (req, res) => {
+  if (!db) {
+    return res.status(503).json({ error: 'Database not available' });
+  }
+
+  try {
+    const result = await db.query(`
+      SELECT 
+        id,
+        canonical_query,
+        plain_query,
+        domain,
+        current_consensus_score,
+        current_consensus_pct,
+        current_certainty,
+        current_paper_count,
+        last_incremental_update,
+        priority_level,
+        is_active,
+        created_at
+      FROM topics 
+      ORDER BY priority_level ASC, created_at DESC
+      LIMIT 50
+    `);
+
+    res.json({
+      success: true,
+      topics: result.rows
+    });
+
+  } catch (error) {
+    console.error('Error fetching topics:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────
@@ -1935,6 +2124,35 @@ app.post('/api/search', async (req, res) => {
         fromCache:     false,
       }
     };
+
+    // ── TRACK TOPIC INTEGRATION ──────────────────────────────────
+    if (trackTopic && db) {
+      try {
+        // Trigger topic tracking for this query
+        const trackingResult = await fetch('http://localhost:' + (process.env.PORT || 3001) + '/api/incremental/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            query: frame.plain, 
+            deep_mode: deepMode || false 
+          })
+        }).then(res => res.json()).catch(err => ({ error: err.message }));
+        
+        if (trackingResult.success) {
+          result.meta.trackingEnabled = true;
+          result.meta.topicId = trackingResult.topic_id;
+          console.log(`  ✓ Topic tracked: ID ${trackingResult.topic_id}`);
+        } else {
+          console.warn(`  ⚠ Topic tracking failed: ${trackingResult.error || trackingResult.message}`);
+          result.meta.trackingEnabled = false;
+          result.meta.trackingError = trackingResult.error || trackingResult.message;
+        }
+      } catch (error) {
+        console.warn(`  ⚠ Topic tracking error: ${error.message}`);
+        result.meta.trackingEnabled = false;
+        result.meta.trackingError = error.message;
+      }
+    }
 
     // Store in cache (async — don't block response)
     setCached(query, frame.plain, result, scoring).catch(() => {});
