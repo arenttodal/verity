@@ -2321,7 +2321,7 @@ app.post('/api/search', async (req, res) => {
 
   const t0 = Date.now();
   console.log(`\n${'═'.repeat(60)}`);
-  console.log(`[${new Date().toISOString()}] "${query}"${deepMode ? ' (DEEP MODE)' : ''}${trackTopic ? ' (TRACK TOPIC)' : ''}`);
+  console.log(`[${new Date().toISOString()}] "${query}"${deepMode ? ' (DEEP MODE)' : ''}${trackTopic ? ' (TRACK TOPIC)' : ''}${forceRefresh ? ' (CACHE BYPASS)' : ''}`);
   
   // ── CACHE CHECK ──────────────────────────────────────────────
   if (!forceRefresh) {

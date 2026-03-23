@@ -2312,13 +2312,18 @@ async function runSearch() {
   const stepTimers  = stepTimings.map((t, i) => setTimeout(() => setStep(i + 1), t));
 
   try {
+    // Check for cache bypass URL parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const forceRefresh = urlParams.has('nocache') || urlParams.has('bypass') || urlParams.has('refresh');
+    
     const res = await fetch('/api/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         query,
         deepMode,
-        trackTopic
+        trackTopic,
+        forceRefresh
       })
     });
 
