@@ -269,6 +269,7 @@ class VerityDatabaseMigration {
         status VARCHAR(20) DEFAULT 'pending',
         attempts INTEGER DEFAULT 0,
         last_attempt TIMESTAMP,
+        completed_at TIMESTAMP,
         error_message TEXT,
         
         -- Processing metadata
@@ -279,6 +280,16 @@ class VerityDatabaseMigration {
         
         UNIQUE(topic_id, update_type, scheduled_for)
       );
+
+      -- Add missing column if it doesn't exist (for existing installations)
+      DO $$ 
+      BEGIN
+        BEGIN
+          ALTER TABLE update_queue ADD COLUMN completed_at TIMESTAMP;
+        EXCEPTION
+          WHEN duplicate_column THEN NULL;
+        END;
+      END $$;
 
       -- New papers watch
       CREATE TABLE IF NOT EXISTS new_papers_watch (
