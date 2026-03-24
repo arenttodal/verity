@@ -1208,24 +1208,86 @@ function analyzeFundingTransparency(extractions) {
   const governmentStudies = [];
   const allGrantNumbers = [];
   
-  console.log(`    Analyzing funding for ${extractions.length} studies...`);
+  console.log(`\n🔴🔴🔴 FINAL AGGREGATION DEBUG 🔴🔴🔴`);
+  console.log(`Analyzing funding for ${extractions.length} studies...`);
   
   extractions.forEach((ex, i) => {
-    console.log(`    Study ${i+1} (${ex.ref}): funding=${JSON.stringify(ex.funding)}, mergedFunding=${JSON.stringify(ex.mergedFunding)}`);
+    console.log(`\n📊 Study ${i+1}: ${ex.ref || 'no-ref'}`);
+    console.log(`   ex.mergedFunding: ${JSON.stringify(ex.mergedFunding || 'NONE')}`);
+    console.log(`   ex.funding: ${JSON.stringify(ex.funding || 'NONE')}`);
     
     let fundingToUse = null;
     
-    // Use merged funding data if available, otherwise fall back to individual sources
-    if (ex.mergedFunding) {
+    // Use merged funding data if available and has real sources
+    if (ex.mergedFunding && ex.mergedFunding.sources && ex.mergedFunding.sources.length > 0) {
       fundingToUse = ex.mergedFunding;
-    } else if (ex.funding) {
+      console.log(`   ✅ Using MERGED funding: ${fundingToUse.sources.join(', ')}`);
+    } else if (ex.funding && ex.funding.sources && ex.funding.sources.length > 0 && 
+               !ex.funding.sources.every(s => !s || s === 'unknown')) {
       fundingToUse = ex.funding;
+      console.log(`   ✅ Using AI funding: ${fundingToUse.sources.join(', ')}`);
     } else {
       // Mark as unknown funding
-      console.log(`    Study ${i+1}: No funding data - marking as unknown`);
+      console.log(`   ❌ No usable funding data - marking as unknown`);
       fundingCategories.unknown++;
       return;
     }
+    
+    // Collect sources
+    if (fundingToUse.sources) {
+      fundingToUse.sources.forEach(source => {
+        if (source && source !== 'unknown' && source.trim() !== '') {
+          fundingSources.push(source);
+          console.log(`   📝 Added source: ${source}`);
+        }
+      });
+    }
+    
+    // Collect grant numbers
+    if (fundingToUse.grantNumbers) {
+      allGrantNumbers.push(...fundingToUse.grantNumbers);
+    }
+    
+    // Count categories (filter out 'unknown')
+    if (fundingToUse.categories && fundingToUse.categories.length > 0) {
+      const validCategories = fundingToUse.categories.filter(c => c !== 'unknown' && c.trim() !== '');
+      if (validCategories.length > 0) {
+        validCategories.forEach(category => {
+          if (fundingCategories.hasOwnProperty(category)) {
+            fundingCategories[category]++;
+            console.log(`   📝 Added category: ${category}`);
+          }
+        });
+      } else {
+        console.log(`   ❌ Only unknown categories - marking as unknown`);
+        fundingCategories.unknown++;
+        return;
+      }
+    } else {
+      console.log(`   ❌ No categories - marking as unknown`);
+      fundingCategories.unknown++;
+      return;
+    }
+    
+    // Count bias risk
+    if (fundingToUse.biasRisk && biasRisks.hasOwnProperty(fundingToUse.biasRisk)) {
+      biasRisks[fundingToUse.biasRisk]++;
+    }
+    
+    // Track industry vs government studies
+    if (fundingToUse.industrySponsored) {
+      industryStudies.push(ex.ref);
+    }
+    if (fundingToUse.categories && fundingToUse.categories.includes('government')) {
+      governmentStudies.push(ex.ref);
+    }
+  });
+
+  console.log(`\n📈 FINAL AGGREGATION SUMMARY:`);
+  console.log(`   Total unique sources: ${[...new Set(fundingSources)].length}`);
+  console.log(`   Categories: ${JSON.stringify(fundingCategories)}`);
+  console.log(`   Sources found: ${[...new Set(fundingSources)].join(', ')}`);
+  console.log(`🔴🔴🔴 END FINAL AGGREGATION DEBUG 🔴🔴🔴\n`);
     
     // Collect sources
     if (fundingToUse.sources) {
@@ -2545,7 +2607,13 @@ app.post('/api/search', async (req, res) => {
         console.log(`   🔄 Merge result: ${JSON.stringify(mergedFunding)}`);
         
         p.fundingAnalysis = mergedFunding;
-        ex.mergedFunding = mergedFunding; // Store for aggregation analysis
+        // Only set mergedFunding on extraction if there's actual funding data
+        if (mergedFunding && mergedFunding.sources && mergedFunding.sources.length > 0) {
+          ex.mergedFunding = mergedFunding;
+          console.log(`   ✅ Stored merged funding for aggregation`);
+        } else {
+          console.log(`   ❌ No funding to store for aggregation`);
+        }
       } else {
         console.log(`   ❌ No matching extraction found`);
       }
