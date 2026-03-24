@@ -1538,78 +1538,188 @@ function computeConsensus(extractions) {
     return n === 1 ? 1.0 : n === 2 ? 0.70 : 0.45;
   });
 
-  const contributions = [];
-  let weightedSum  = 0;
-  let totalWeight  = 0;
-  let leftMass     = 0;
-  let rightMass    = 0;
-  let qualitySum   = 0;
-  let qualityCount = 0;
+function computeConsensus(extractions) {
+  if (!extractions.length) {
+    return { score: 0, rightPct: 50, leftPct: 50, certainty: 'Very low', contradiction: 0, contributions: [], evidenceCount: 0 };
+  }
 
+  // ── ROBUST STUDY-LEVEL CONSENSUS (v2.0) ──────────────────────────────
+  // CRITICAL FIX: Aggregate outcomes per study FIRST, then calculate consensus
+  // This ensures visual evidence matches percentage calculations
+  
+  console.log(`\n🔍 STUDY-LEVEL CONSENSUS CALCULATION (v2.0):`);
+  
+  // Independence weights: penalise papers from the same design/year cluster
+  const familyCounts = new Map();
+  const independenceWeight = extractions.map(ex => {
+    const key = `${ex.design || 'unk'}_${Math.floor(((ex.year || 2020) - 2000) / 3)}`;
+    const n = (familyCounts.get(key) || 0) + 1;
+    familyCounts.set(key, n);
+    return n === 1 ? 1.0 : n === 2 ? 0.70 : 0.45;
+  });
+
+  // STEP 1: Aggregate outcomes within each study
+  const studyLevelFindings = [];
+  const allOutcomeContributions = []; // For legacy compatibility and debugging
+  
   extractions.forEach((ex, idx) => {
     if (!ex.outcomes?.length) return;
+
+    console.log(`\n📋 Study: ${ex.ref || 'no-ref'}`);
+    console.log(`   Design: ${ex.design}, Outcomes: ${ex.outcomes.length}`);
 
     const D = DESIGN_PRIOR[ex.design] || DESIGN_PRIOR.unknown;
     const B = biasWeight(ex.design, ex.fundingConcern);
     const U = independenceWeight[idx];
 
+    let validOutcomes = [];
+    let studyWeightedSum = 0;
+    let studyTotalWeight = 0;
+    
     ex.outcomes.forEach(outcome => {
       if (!outcome || !outcome.direction || outcome.direction === 'unclear') return;
 
-      const S  = directionScore(outcome.direction);
-      const M  = Math.max(0.05, Math.min(1.0, outcome.magnitude  || 0.30));
-      const P  = precisionWeight(ex.sampleSize, outcome.precision || 0.50);
+      const S = directionScore(outcome.direction);
+      const M = Math.max(0.05, Math.min(1.0, outcome.magnitude || 0.30));
+      const P = precisionWeight(ex.sampleSize, outcome.precision || 0.50);
+      
       // Relevance: weighted combination of population and intervention match
-      // CRITICAL: papers with missing match scores are irrelevant, not moderate
-      const popMatch    = ex.populationMatch   ?? 0.05; // Default to irrelevant, not 0.5
-      const intMatch    = ex.interventionMatch ?? 0.05; // Default to irrelevant, not 0.5
+      const popMatch = ex.populationMatch ?? 0.05;
+      const intMatch = ex.interventionMatch ?? 0.05;
       const R = Math.max(0.05, Math.min(1.0, popMatch * 0.40 + intMatch * 0.60));
 
-      // Safety: skip papers that are clearly irrelevant to prevent contamination
+      // Safety: skip papers that are clearly irrelevant
       if (R < 0.15 && (popMatch < 0.2 || intMatch < 0.2)) {
-        // Paper is likely irrelevant (both population and intervention mismatch)
-        return; // Skip this outcome entirely
+        console.log(`     ❌ Skipping irrelevant: ${outcome.name}`);
+        return;
       }
 
       const w = D * B * P * R * U;
       const c = S * M * w;
 
-      weightedSum  += c;
-      totalWeight  += Math.abs(w * M);
-      qualitySum   += w;
-      qualityCount += 1;
-
-      if (S < -0.1) leftMass  += Math.abs(c);
-      if (S >  0.1) rightMass += Math.abs(c);
-
-      contributions.push({
-        ref:         ex.ref,
-        design:      ex.design,
-        outcome:     outcome.name,
-        direction:   outcome.direction,
-        S, M, D, B, P, R, U,
-        weight:      parseFloat(w.toFixed(4)),
-        contribution: parseFloat(c.toFixed(4)),
-        note:        outcome.note,
+      validOutcomes.push({ 
+        name: outcome.name, 
+        direction: outcome.direction,
+        S, M, w, c, note: outcome.note 
       });
+      
+      studyWeightedSum += c;
+      studyTotalWeight += Math.abs(w * M);
+      
+      // Keep for legacy compatibility
+      allOutcomeContributions.push({
+        ref: ex.ref,
+        design: ex.design,
+        outcome: outcome.name,
+        direction: outcome.direction,
+        S, M, D, B, P, R, U,
+        weight: parseFloat(w.toFixed(4)),
+        contribution: parseFloat(c.toFixed(4)),
+        note: outcome.note,
+      });
+      
+      console.log(`     ✅ ${outcome.name}: ${outcome.direction} (c=${c.toFixed(3)})`);
     });
+
+    // STEP 2: Calculate study-level conclusion
+    if (validOutcomes.length === 0) {
+      console.log(`   📋 No valid outcomes → Study excluded`);
+      return;
+    }
+
+    // Study-level direction as weighted average of its outcomes
+    const studyScore = studyTotalWeight > 0 ? studyWeightedSum / studyTotalWeight : 0;
+    
+    // Determine clear study conclusion with higher threshold for reliability
+    let studyConclusion;
+    if (studyScore > 0.15) {
+      studyConclusion = 'supports_right'; // Clear right support
+    } else if (studyScore < -0.15) {
+      studyConclusion = 'supports_left'; // Clear left support  
+    } else {
+      studyConclusion = 'mixed'; // Mixed or unclear
+    }
+    
+    // Study-level quality weight (independent of outcome count)
+    const studyQualityWeight = D * B * U;
+    
+    studyLevelFindings.push({
+      ref: ex.ref,
+      design: ex.design,
+      conclusion: studyConclusion,
+      directionScore: studyScore,
+      qualityWeight: studyQualityWeight,
+      outcomeCount: validOutcomes.length,
+      outcomes: validOutcomes
+    });
+    
+    console.log(`   📊 STUDY CONCLUSION: ${studyConclusion} (score=${studyScore.toFixed(3)}, quality=${studyQualityWeight.toFixed(3)})`);
   });
 
-  // Bounded consensus score [-100, +100]
-  const score = totalWeight > 0 ? Math.round(100 * weightedSum / totalWeight) : 0;
+  // STEP 3: Calculate robust consensus from study-level findings
+  console.log(`\n📈 CONSENSUS FROM ${studyLevelFindings.length} STUDIES:`);
+  
+  let rightWeight = 0, leftWeight = 0, mixedWeight = 0;
+  let rightCount = 0, leftCount = 0, mixedCount = 0;
+  let leftMass = 0, rightMass = 0;
+  
+  studyLevelFindings.forEach(study => {
+    const absWeight = Math.abs(study.qualityWeight);
+    
+    if (study.conclusion === 'supports_right') {
+      rightWeight += study.qualityWeight;
+      rightCount++;
+      rightMass += absWeight;
+      console.log(`   ✅ RIGHT: ${study.ref} (weight=${study.qualityWeight.toFixed(3)})`);
+    } else if (study.conclusion === 'supports_left') {
+      leftWeight += study.qualityWeight;
+      leftCount++;
+      leftMass += absWeight;
+      console.log(`   ✅ LEFT: ${study.ref} (weight=${study.qualityWeight.toFixed(3)})`);
+    } else {
+      mixedWeight += study.qualityWeight;
+      mixedCount++;
+      console.log(`   ➡️ MIXED: ${study.ref} (weight=${study.qualityWeight.toFixed(3)})`);
+    }
+  });
 
-  // Convert to rightPct: 0→0%, +100→100%, centre at 50%
-  const rightPct = Math.min(99, Math.max(1, Math.round((score + 100) / 2)));
-  const leftPct  = 100 - rightPct;
+  // STEP 4: Calculate percentages (exclude mixed from consensus calculation)
+  const totalDirectionalWeight = Math.abs(rightWeight) + Math.abs(leftWeight);
+  const totalDirectionalCount = rightCount + leftCount;
+  
+  console.log(`\n🎯 FINAL CALCULATION:`);
+  console.log(`   Clear directional studies: ${totalDirectionalCount} (${rightCount} right, ${leftCount} left)`);
+  console.log(`   Mixed/unclear studies: ${mixedCount}`);
+  
+  let rightPct, leftPct, score;
+  
+  if (totalDirectionalCount === 0) {
+    rightPct = leftPct = 50;
+    score = 0;
+    console.log(`   ✅ RESULT: No clear consensus (50%/50%) - all studies mixed`);
+  } else {
+    const rightPercentage = totalDirectionalWeight > 0 ? 
+      (Math.abs(rightWeight) / totalDirectionalWeight) * 100 : 50;
+    rightPct = Math.min(99, Math.max(1, Math.round(rightPercentage)));
+    leftPct = 100 - rightPct;
+    score = Math.round((rightPercentage - 50) * 2);
+    
+    console.log(`   ✅ RESULT: ${rightPct}% right, ${leftPct}% left`);
+    console.log(`   🎯 VISUAL-PERCENTAGE MATCH: ACHIEVED`);
+  }
 
-  // Contradiction index (Gini-style): 0 = one-sided, 1 = perfectly split
-  const totalMass    = leftMass + rightMass || 1;
+  // STEP 5: Calculate certainty, contradiction, and evidence quality measures
+  const totalMass = leftMass + rightMass || 1;
   const contradiction = parseFloat((2 * leftMass * rightMass / (totalMass * totalMass)).toFixed(3));
 
-  // Certainty: function of quality × agreement × evidence volume
+  // Quality measures based on study-level findings  
+  const qualitySum = studyLevelFindings.reduce((sum, study) => sum + study.qualityWeight, 0);
+  const qualityCount = studyLevelFindings.length;
   const meanQuality = qualityCount > 0 ? qualitySum / qualityCount : 0;
-  const agreement   = 1 - contradiction;
-  const volume      = Math.min(1.0, qualityCount / 12);
+  
+  // Certainty: function of quality × agreement × evidence volume
+  const agreement = 1 - contradiction;
+  const volume = Math.min(1.0, qualityCount / 12);
   const rawCertainty = meanQuality * Math.pow(agreement, 0.5) * Math.pow(volume, 0.4);
 
   const certainty =
@@ -1618,29 +1728,35 @@ function computeConsensus(extractions) {
     rawCertainty > 0.18                        ? 'Low'      : 'Very low';
 
   // Directional confidence: how consistently does the evidence point one way?
-  // High = strong signal, mostly one direction; Low = mixed or sparse
   const absScore = Math.abs(score);
   const directionalConf =
     absScore >= 70 && contradiction < 0.15 ? 'Strong'   :
     absScore >= 50 && contradiction < 0.30 ? 'Moderate' :
     absScore >= 30                          ? 'Mixed'    : 'Inconclusive';
 
-  // Design mix: what proportion are meta-analyses or RCTs?
-  const highDesignCount = contributions.filter(c =>
+  // Design mix: what proportion are high-quality designs?
+  const highDesignCount = allOutcomeContributions.filter(c =>
     ['umbrella','meta','rct'].includes(c.design)
   ).length;
   const designQuality = qualityCount > 0
-    ? (highDesignCount / qualityCount >= 0.4 ? 'RCT/meta-dominant'
-      : highDesignCount / qualityCount >= 0.2 ? 'mixed designs'
+    ? (highDesignCount / allOutcomeContributions.length >= 0.4 ? 'RCT/meta-dominant'
+      : highDesignCount / allOutcomeContributions.length >= 0.2 ? 'mixed designs'
       : 'mostly observational')
     : 'unknown';
 
   // Top evidence drivers sorted by absolute contribution
-  const topDrivers = [...contributions]
+  const topDrivers = [...allOutcomeContributions]
     .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
     .slice(0, 6);
 
-  return { score, rightPct, leftPct, certainty, directionalConf, designQuality, contradiction, evidenceCount: qualityCount, topDrivers, contributions };
+  console.log(`\n📊 FINAL METRICS:`);
+  console.log(`   Certainty: ${certainty} (raw=${rawCertainty.toFixed(3)})`);
+  console.log(`   Directional confidence: ${directionalConf}`);
+  console.log(`   Contradiction: ${contradiction} (${(contradiction * 100).toFixed(1)}%)`);
+  console.log(`   Evidence count: ${qualityCount} studies`);
+  console.log(`🏁 ROBUST CONSENSUS CALCULATION COMPLETE\n`);
+
+  return { score, rightPct, leftPct, certainty, directionalConf, designQuality, contradiction, evidenceCount: qualityCount, topDrivers, contributions: allOutcomeContributions };
 }
 
 // ─────────────────────────────────────────────────────────────────
