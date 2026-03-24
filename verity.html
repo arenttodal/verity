@@ -2387,8 +2387,23 @@ function mediaStanceToX(stance, weight) {
 // ── Main data population ──────────────────────────────────────────
 // ── FUNDING TRANSPARENCY DISPLAY ──────────────────────────────────
 function displayFundingAnalysis(fundingData) {
-  if (!fundingData || fundingData.totalStudies === 0) {
-    document.getElementById('fundingSection').style.display = 'none';
+  if (!data.mediaAnalysis || data.mediaAnalysis.noRelevantMedia) {
+    document.getElementById('fundingSection').style.display = 'block';
+    
+    // Show funding analysis
+    displayFundingAnalysis(fundingData);
+    
+    // Handle no relevant media case
+    const mediaSection = document.querySelector('.media-section'); // You'll need to identify the correct selector
+    if (mediaSection && data.mediaAnalysis?.noRelevantMedia) {
+      const mediaContent = mediaSection.querySelector('.media-content');
+      if (mediaContent) {
+        mediaContent.innerHTML = `<div style="text-align: center; padding: 20px; color: var(--text-muted);">
+          <div style="font-size: 14px; margin-bottom: 8px;">📺 Media Analysis</div>
+          <div style="font-size: 12px;">${data.mediaAnalysis.message || 'No relevant media coverage found'}</div>
+        </div>`;
+      }
+    }
     return;
   }
   

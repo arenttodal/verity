@@ -2159,10 +2159,29 @@ async function claudeFilterMedia(articles, frame) {
     `[${i}] "${a.title}"${a.snippet ? ' — ' + a.snippet.slice(0, 80) : ''}`
   ).join('\n');
 
+  // Detect medical/scientific topics for stricter filtering
+  const isMedicalTopic = /\b(treatment|therapy|surgery|medication|drug|medical|clinical|patient|diagnosis|disease|condition|symptom|outcome|laser|cryo|surgical|procedure)\b/i.test(frame.plain);
+  
+  const strictnessInstruction = isMedicalTopic ? 
+    `STRICT MEDICAL RELEVANCE REQUIRED: Only include articles that are directly about the specific medical treatment, condition, or procedure mentioned in the research question. 
+
+IRRELEVANT articles include:
+- Legal news, arrests, court cases
+- Politics, government policy 
+- General health news unrelated to the specific treatment
+- Other medical topics not mentioned in the research question
+- Social issues, business news, entertainment
+
+RELEVANT = article specifically discusses the exact medical treatments/conditions in the research question` :
+    `RELEVANT = the article discusses the subject AND the specific outcomes/effects being researched.
+IRRELEVANT = the article is about the subject in a completely different context.
+
+Be generous — if an article MIGHT be about the topic, include it. Only exclude clear mismatches.`;
+
   const msg = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 800,
-    system: 'You are a media relevance filter. Respond ONLY with valid JSON.',
+    system: 'You are a media relevance filter. For medical topics, be extremely strict. Respond ONLY with valid JSON.',
     messages: [{
       role: 'user',
       content: `Research question: "${frame.plain}"
@@ -2171,8 +2190,7 @@ Outcomes studied: ${(frame.outcomes || []).join(', ')}
 
 Below are news article titles. For each one, decide: is this article ACTUALLY about the research question above?
 
-RELEVANT = the article discusses the subject AND the specific outcomes/effects being researched.
-IRRELEVANT = the article is about the subject in a completely different context (e.g. "pet insurance costs" when the question is about pet ownership and mental health).
+${strictnessInstruction}
 
 ${block}
 
@@ -2181,8 +2199,7 @@ Return ONLY:
   "relevant": [0, 3, 5, 7],
   "irrelevant": [1, 2, 4, 6]
 }
-
-Be generous — if an article MIGHT be about the topic, include it. Only exclude clear mismatches.`
+`
     }]
   });
 
@@ -2190,12 +2207,21 @@ Be generous — if an article MIGHT be about the topic, include it. Only exclude
     const parsed = parseJSON(msg.content[0].text);
     const relevantIndices = new Set(parsed.relevant || []);
     const kept = candidates.filter((_, i) => relevantIndices.has(i));
-    console.log(`  Claude filter: ${candidates.length} candidates → ${kept.length} relevant`);
+    console.log(`  Claude filter: ${candidates.length} candidates → ${kept.length} relevant (medical topic: ${isMedicalTopic})`);
+    
+    // Medical topic safety: if very few relevant articles, don't show media
+    if (isMedicalTopic && kept.length < 3) {
+      console.log(`  Medical safety: Only ${kept.length} relevant articles - insufficient for reliable media analysis`);
+      return [];
+    }
+    
     return kept;
   } catch (e) {
     console.warn('  Claude media filter failed:', e.message);
-    // Fall back to returning all candidates if Claude fails
-    return candidates;
+    // CRITICAL FIX: Don't return garbage articles when filtering fails
+    // Better to have no media than completely irrelevant media
+    console.log('  Returning empty due to filter failure (safety)');
+    return [];
   }
 }
 
@@ -2240,7 +2266,32 @@ async function fetchMedia(frame, deepMode = false) {
 
 
 async function analyzeMedia(plain, articles, frame) {
-  if (!articles || articles.length === 0) return { stances: [], leftPct: 50, rightPct: 50 };
+  // Enhanced safety checks for medical topics
+  const isMedicalTopic = /\b(treatment|therapy|surgery|medication|drug|medical|clinical|patient|diagnosis|disease|condition|symptom|outcome|laser|cryo|surgical|procedure)\b/i.test(plain);
+  
+  if (!articles || articles.length === 0) {
+    console.log(`  No relevant media articles found for: "${plain}"`);
+    return { 
+      stances: [], 
+      leftPct: 50, 
+      rightPct: 50, 
+      noRelevantMedia: true,
+      message: isMedicalTopic ? "No relevant medical media coverage found" : "No relevant media coverage found"
+    };
+  }
+  
+  // For medical topics, require minimum coverage to avoid misleading analysis
+  if (isMedicalTopic && articles.length < 3) {
+    console.log(`  Insufficient medical media coverage: ${articles.length} articles (minimum 3 required)`);
+    return { 
+      stances: [], 
+      leftPct: 50, 
+      rightPct: 50, 
+      noRelevantMedia: true,
+      message: "Limited relevant medical media coverage found"
+    };
+  }
+  
   const block = articles.map((a, i) => `[${i}] "${a.title}" — ${a.outlet}`).join('\n');
   const msg = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514', max_tokens: 1200,
