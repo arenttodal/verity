@@ -1288,45 +1288,6 @@ function analyzeFundingTransparency(extractions) {
   console.log(`   Categories: ${JSON.stringify(fundingCategories)}`);
   console.log(`   Sources found: ${[...new Set(fundingSources)].join(', ')}`);
   console.log(`🔴🔴🔴 END FINAL AGGREGATION DEBUG 🔴🔴🔴\n`);
-    
-    // Collect sources
-    if (fundingToUse.sources) {
-      fundingToUse.sources.forEach(source => {
-        if (source && source !== 'unknown') {
-          fundingSources.push(source);
-        }
-      });
-    }
-    
-    // Collect grant numbers
-    if (fundingToUse.grantNumbers) {
-      allGrantNumbers.push(...fundingToUse.grantNumbers);
-    }
-    
-    // Count categories
-    if (fundingToUse.categories && fundingToUse.categories.length > 0) {
-      fundingToUse.categories.forEach(category => {
-        if (fundingCategories.hasOwnProperty(category)) {
-          fundingCategories[category]++;
-        }
-      });
-    } else {
-      fundingCategories.unknown++;
-    }
-    
-    // Count bias risk
-    if (fundingToUse.biasRisk && biasRisks.hasOwnProperty(fundingToUse.biasRisk)) {
-      biasRisks[fundingToUse.biasRisk]++;
-    }
-    
-    // Track industry vs government studies
-    if (fundingToUse.industrySponsored) {
-      industryStudies.push(ex.ref);
-    }
-    if (fundingToUse.categories && fundingToUse.categories.includes('government')) {
-      governmentStudies.push(ex.ref);
-    }
-  });
 
   // Calculate unique funding sources and grant numbers
   const uniqueSources = [...new Set(fundingSources)];
