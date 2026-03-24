@@ -1528,22 +1528,6 @@ function computeConsensus(extractions) {
   }
 
   // Independence weights: penalise papers from the same design/year cluster
-  // (proxy for overlapping research families)
-  const familyCounts = new Map();
-  const independenceWeight = extractions.map(ex => {
-    const key = `${ex.design || 'unk'}_${Math.floor(((ex.year || 2020) - 2000) / 3)}`;
-    const n = (familyCounts.get(key) || 0) + 1;
-    familyCounts.set(key, n);
-    // First paper from family = 1.0, second = 0.70, third+ = 0.45
-    return n === 1 ? 1.0 : n === 2 ? 0.70 : 0.45;
-  });
-
-function computeConsensus(extractions) {
-  if (!extractions.length) {
-    return { score: 0, rightPct: 50, leftPct: 50, certainty: 'Very low', contradiction: 0, contributions: [], evidenceCount: 0 };
-  }
-
-  // Independence weights: penalise papers from the same design/year cluster
   const familyCounts = new Map();
   const independenceWeight = extractions.map(ex => {
     const key = `${ex.design || 'unk'}_${Math.floor(((ex.year || 2020) - 2000) / 3)}`;
@@ -1653,7 +1637,6 @@ function computeConsensus(extractions) {
     .slice(0, 6);
 
   return { score, rightPct, leftPct, certainty, directionalConf, designQuality, contradiction, evidenceCount: qualityCount, topDrivers, contributions };
-}
 }
 
 // ─────────────────────────────────────────────────────────────────
