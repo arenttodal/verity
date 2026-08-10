@@ -38,6 +38,49 @@ app.use(express.static(path.join(__dirname)));
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ─────────────────────────────────────────────────────────────────
+//  MODELS — declared once so a retirement is a one-line change.
+//
+//  The previous IDs (claude-sonnet-4-20250514, claude-3-haiku-20240307)
+//  passed their retirement dates and started returning
+//  404 not_found_error, which killed frameQuery — the first step of
+//  every search — and took the whole site down.
+//
+//  assertModelsAvailable() below turns the next retirement into a
+//  loud failure at boot instead of a silent one mid-pipeline.
+// ─────────────────────────────────────────────────────────────────
+const MODEL_REASONING  = 'claude-sonnet-5';   // framing, extraction, synthesis, verdict
+const MODEL_CLASSIFIER = 'claude-haiku-4-5';  // relevance + media filtering
+
+// These models run adaptive thinking by default, and max_tokens caps
+// thinking AND response text together — so an unset thinking field
+// would let reasoning consume the entire budget and truncate the
+// answer. Every call below is a short structured-output call that
+// does not want thinking, so it is disabled explicitly.
+const NO_THINKING = { type: 'disabled' };
+
+async function assertModelsAvailable() {
+  let verified = 0;
+  for (const id of [MODEL_REASONING, MODEL_CLASSIFIER]) {
+    try {
+      await anthropic.models.retrieve(id);
+      verified++;
+    } catch (e) {
+      // A 404 means the ID is retired or wrong — permanent, and every search
+      // will fail, so refuse to start. Anything else (network blip, transient
+      // 5xx) should not crash-loop the deploy: warn and carry on.
+      if (e?.status === 404) {
+        console.error(`\n✗ FATAL: model "${id}" does not exist (404) — it has likely been retired.`);
+        console.error('  Every search would fail. Update the model IDs in server.js.\n');
+        process.exit(1);
+      }
+      console.warn(`⚠ Could not verify model "${id}": ${e.message} — starting anyway`);
+    }
+  }
+  if (verified === 2) console.log(`✓ Models OK: ${MODEL_REASONING} + ${MODEL_CLASSIFIER}`);
+  else console.warn(`⚠ Models unverified (${verified}/2) — proceeding; searches may fail`);
+}
+
+// ─────────────────────────────────────────────────────────────────
 //  DATABASE — PostgreSQL cache layer
 //  CONNECTION: Railway sets DATABASE_URL automatically when you
 //  provision a Postgres instance. If not set, caching is skipped
@@ -433,8 +476,9 @@ const DESIGN_PRIOR = {
 // ─────────────────────────────────────────────────────────────────
 async function frameQuery(raw) {
   const msg = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 1100,
+    model: MODEL_REASONING,
+    max_tokens: 2000,
+    thinking: NO_THINKING,
     system: 'You are a PICO-trained systematic review methodologist and biomedical search expert. Respond ONLY with valid JSON. No markdown, no explanation.',
     messages: [{
       role: 'user',
@@ -1136,8 +1180,9 @@ async function validateRelevanceWithClaude(papers, frame) {
       ).join('\n\n');
       
       const msg = await anthropic.messages.create({
-        model: 'claude-3-haiku-20240307', // Fast + cheap for relevance checking
-        max_tokens: 500,
+        model: MODEL_CLASSIFIER, // Fast + cheap for relevance checking
+        max_tokens: 1000,
+        thinking: NO_THINKING,
         messages: [{
           role: 'user',
           content: `Research question: "${frame.plain}"
@@ -1367,8 +1412,9 @@ async function extractOutcomes(papers, frame, deepMode = false) {
     ).join('\n\n───\n\n');
 
     const msg = await anthropic.messages.create({
-      model:      'claude-sonnet-4-20250514',
-      max_tokens: 2800,
+      model:      MODEL_REASONING,
+      max_tokens: 8000,
+      thinking: NO_THINKING,
       system:     'Systematic review data extractor. Extract exactly what is stated in each abstract. Do not add interpretation beyond what is written. Respond ONLY with valid JSON.',
       messages: [{
         role: 'user',
@@ -1654,7 +1700,7 @@ async function synthesize(frame, papers, scoring) {
   ).join('\n');
 
   const msg = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514', max_tokens: 1800,
+    model: MODEL_REASONING, max_tokens: 3000, thinking: NO_THINKING,
     system: 'Scientific synthesis writer. Write clean HTML prose. Never use bullet points. Be specific about what the evidence shows and does not show. Proportion uncertainty to the certainty level given.',
     messages: [{
       role: 'user',
@@ -1713,7 +1759,7 @@ async function generateVerdict(frame, scoring) {
   const contradict = scoring.contradiction;
 
   const msg = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514', max_tokens: 200,
+    model: MODEL_REASONING, max_tokens: 500, thinking: NO_THINKING,
     system: 'You write one-line practical verdicts on scientific topics. You are honest, warm, and direct — like a trusted doctor friend who gives you the real answer, not the defensive one. Never use jargon. Never hedge unnecessarily. Never start with "I".',
     messages: [{
       role: 'user',
@@ -2006,8 +2052,9 @@ async function fetchBingNewsDateRange(searchQuery, fromYear) {
 // on this specific topic. Cast wide, filter smart.
 async function generateMediaSearchQueries(frame, deepMode = false) {
   const msg = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 400,
+    model: MODEL_REASONING,
+    max_tokens: 800,
+    thinking: NO_THINKING,
     system: 'You generate news search queries. Respond ONLY with valid JSON.',
     messages: [{
       role: 'user',
@@ -2136,8 +2183,9 @@ IRRELEVANT = the article is about the subject in a completely different context.
 Be generous — if an article MIGHT be about the topic, include it. Only exclude clear mismatches.`;
 
   const msg = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 800,
+    model: MODEL_REASONING,
+    max_tokens: 1500,
+    thinking: NO_THINKING,
     system: 'You are a media relevance filter. For medical topics, be extremely strict. Respond ONLY with valid JSON.',
     messages: [{
       role: 'user',
@@ -2251,7 +2299,7 @@ async function analyzeMedia(plain, articles, frame) {
   
   const block = articles.map((a, i) => `[${i}] "${a.title}" — ${a.outlet}`).join('\n');
   const msg = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514', max_tokens: 1200,
+    model: MODEL_REASONING, max_tokens: 2000, thinking: NO_THINKING,
     system: 'Media framing analyst. Respond ONLY with valid JSON.',
     messages: [{
       role: 'user',
@@ -2364,8 +2412,9 @@ async function analyzeDivergence(frame, papers, scoring, mediaArticles, mediaAna
     .join('\n');
 
   const msg = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 500,
+    model: MODEL_REASONING,
+    max_tokens: 1000,
+    thinking: NO_THINKING,
     system: 'You are a science communication researcher analysing why media coverage diverges from scientific evidence. Respond ONLY with valid JSON. Be intellectually honest — name patterns, not conclusions. Use hedged language.',
     messages: [{
       role: 'user',
@@ -2785,6 +2834,7 @@ app.post('/api/search', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, async () => {
+  await assertModelsAvailable();
   await initDB();
   console.log(`\n🔬 Verity v7.0 → http://localhost:${PORT}`);
   console.log('   Sources:  Semantic Scholar + PubMed + OpenAlex (parallel)');
