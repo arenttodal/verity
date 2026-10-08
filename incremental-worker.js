@@ -3,13 +3,14 @@
 // Processes queued topic updates in the background
 // =====================================================================
 
-const { Pool } = require('pg');
-const crypto = require('crypto');
-
 class IncrementalWorker {
-  constructor(dbPool, anthropicClient) {
+  // analyze: async (query) => full pipeline result (see lib/pipeline.js).
+  // The worker never fabricates numbers: if analysis fails, the update
+  // is marked failed and the topic keeps its last real values.
+  constructor(dbPool, analyze) {
+    if (typeof analyze !== 'function') throw new Error('IncrementalWorker requires an analyze(query) function');
     this.db = dbPool;
-    this.anthropic = anthropicClient;
+    this.analyze = analyze;
     this.isRunning = false;
     this.currentJobs = 0;
     this.maxConcurrentJobs = 3;
@@ -137,8 +138,8 @@ class IncrementalWorker {
         WHERE id = $1
       `, [
         update.topic_id,
-        result.consensus_score || null,
-        result.consensus_pct || null,
+        result.consensus_score ?? null,
+        result.consensus_pct ?? null,
         result.certainty || null,
         result.paper_count || 0
       ]);
@@ -185,46 +186,23 @@ class IncrementalWorker {
   }
 
   async performTopicAnalysis(topic, topicId) {
-    // This is a simplified version - in a full implementation,
-    // this would run the full Verity search pipeline
-    console.log(`📊 Running analysis for: "${topic.canonical_query}"`);
-
-    try {
-      // For now, just return a placeholder result
-      // In production, this would:
-      // 1. Run the search pipeline (frameQuery, fetchAll, etc.)
-      // 2. Store new papers in the papers table
-      // 3. Update topic_papers relationships
-      // 4. Compute consensus and store in consensus_history
-      
-      return {
-        consensus_score: Math.floor(Math.random() * 200) - 100, // Placeholder: -100 to +100
-        consensus_pct: Math.floor(Math.random() * 100), // Placeholder: 0-100%
-        certainty: ['Very Low', 'Low', 'Moderate', 'High'][Math.floor(Math.random() * 4)],
-        paper_count: Math.floor(Math.random() * 50) + 5, // Placeholder: 5-55 papers
-        new_papers: 0,
-        updated_at: new Date().toISOString()
-      };
-
-    } catch (error) {
-      console.error(`Analysis failed for topic ${topicId}:`, error.message);
-      throw error;
-    }
+    console.log(`📊 Re-analysing tracked topic ${topicId}: "${topic.canonical_query}"`);
+    const result = await this.analyze(topic.canonical_query);
+    const debate = result.analysis.debate;
+    // Store nothing for insufficient evidence rather than a fake 50%.
+    const usable = debate.evidenceState !== 'insufficient';
+    return {
+      consensus_score: usable ? debate.score : null,
+      consensus_pct: usable ? debate.rightPct : null,
+      certainty: debate.certainty,
+      paper_count: result.meta.paperCount,
+      updated_at: new Date().toISOString(),
+    };
   }
 
+  // New-evidence updates simply re-run the full analysis for now.
   async processNewEvidence(topic, topicId) {
-    // Process newly discovered papers for this topic
-    console.log(`🔍 Processing new evidence for: "${topic.canonical_query}"`);
-    
-    // Placeholder implementation
-    return {
-      consensus_score: Math.floor(Math.random() * 200) - 100,
-      consensus_pct: Math.floor(Math.random() * 100),
-      certainty: ['Very Low', 'Low', 'Moderate', 'High'][Math.floor(Math.random() * 4)],
-      paper_count: Math.floor(Math.random() * 50) + 5,
-      new_papers: Math.floor(Math.random() * 5) + 1,
-      updated_at: new Date().toISOString()
-    };
+    return this.performTopicAnalysis(topic, topicId);
   }
 
   sleep(ms) {

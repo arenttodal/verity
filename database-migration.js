@@ -20,6 +20,11 @@ class VerityDatabaseMigration {
         version: 2,
         description: 'Create incremental evidence system tables',
         sql: this.getIncrementalSystemSQL()
+      },
+      {
+        version: 3,
+        description: 'v9: purge placeholder consensus values, add per-paper extraction cache',
+        sql: this.getV9SQL()
       }
     ];
   }
@@ -380,6 +385,25 @@ class VerityDatabaseMigration {
       DROP TRIGGER IF EXISTS update_papers_last_updated ON papers;  
       CREATE TRIGGER update_papers_last_updated BEFORE UPDATE ON papers
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    `;
+  }
+
+  getV9SQL() {
+    return `
+      -- Before v9 the incremental worker wrote Math.random() values into
+      -- these columns. None of them are real; remove them all.
+      UPDATE topics SET current_consensus_score = NULL, current_consensus_pct = NULL,
+                        current_certainty = NULL, current_paper_count = NULL;
+      DELETE FROM consensus_history;
+
+      -- Results computed by the pre-v9 scoring engine are superseded.
+      DELETE FROM query_cache;
+
+      CREATE TABLE IF NOT EXISTS paper_extractions (
+        cache_key  CHAR(64) PRIMARY KEY,
+        extraction JSONB NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
     `;
   }
 

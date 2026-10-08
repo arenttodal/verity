@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Verity — Evidence Summary</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -291,18 +291,24 @@ body::before {
 
 <script>
 const p = new URLSearchParams(window.location.search);
+// Every value below comes from the URL and is attacker-controllable:
+// only ever write it with textContent or esc().
+function esc(v) {
+  return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+const clampPct = v => { const n = parseInt(v, 10); return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 50; };
 
 const query      = p.get('q')  || '';
-const sciPct     = parseInt(p.get('s')  || '50', 10);
-const medPct     = parseInt(p.get('ms') || '50', 10);
+const sciPct     = clampPct(p.get('s'));
+const medPct     = clampPct(p.get('ms'));
 const leftLabel  = p.get('l')  || 'Concern';
 const rightLabel = p.get('r')  || 'Benefit';
 const verdict    = p.get('v')  || '';
 const certText   = p.get('c')  || '';
 const dotsRaw    = p.get('d')  || '';
 const mDotsRaw   = p.get('md') || '';
-const nStudies   = p.get('n')  || '0';
-const nMedia     = p.get('nm') || '0';
+const nStudies   = String(parseInt(p.get('n') || '0', 10) || 0);
+const nMedia     = String(parseInt(p.get('nm') || '0', 10) || 0);
 const daHeadline    = p.get('da')  || '';
 const daExplanation = p.get('dax') || '';
 const axisLeft      = p.get('al')  || 'no effect';
@@ -321,7 +327,7 @@ const sDir = sciPct >= 50 ? rightLabel : leftLabel;
 document.getElementById('sciScore').textContent = sciPct + '%';
 document.getElementById('medScore').textContent = medPct + '%';
 document.getElementById('dirLabel').innerHTML =
-  sDir.toUpperCase() + '<br><span style="opacity:0.5;font-size:7px;">consensus direction</span>';
+  esc(sDir.toUpperCase()) + '<br><span style="opacity:0.5;font-size:7px;">consensus direction</span>';
 
 // Pins
 document.getElementById('sciPin').style.left = sciPct + '%';
@@ -351,7 +357,7 @@ if (div >= 8) {
     ? ', ' + firstSentence.replace(/^[A-Z]/, m => m.toLowerCase()).replace(/\.$/, '') + '.'
     : '.';
   divEl.innerHTML =
-    `<strong>${sign}${div}% divergence.</strong> Media coverage leans ${div} points further toward "${dir}" than the science supports${causeClause}`;
+    `<strong>${div}-point gap.</strong> Headlines lean further toward "${esc(dir)}" than the science supports${esc(causeClause)}`;
   divEl.style.display = 'block';
 }
 

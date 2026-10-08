@@ -15,7 +15,7 @@
   --border: rgba(255,255,255,0.07);
   --border-soft: rgba(255,255,255,0.04);
   --text-primary: rgba(255,255,255,0.90);
-  --text-muted: rgba(255,255,255,0.22);
+  --text-muted: rgba(255,255,255,0.46); /* ≥4.5:1 on --bg (was 0.22 ≈ 1.9:1) */
   --red: #cc5c5c;
   --blue: #4e98c8;
   --orange: #c87d3a;
@@ -89,7 +89,7 @@ header { display: flex; align-items: center; justify-content: space-between; pad
 .section:nth-child(3) { animation-delay: 0.3s; }
 
 .section-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 22px; border-bottom: 1px solid var(--border-soft); gap: 12px; flex-wrap: wrap; }
-.section-title { font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-muted); }
+.section-title { font-weight: 400; font-family: 'DM Mono', monospace; font-size: 8.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-muted); }
 .section-sub { font-size: 9.5px; color: var(--text-muted); font-style: italic; }
 .section-body { padding: 24px 22px; }
 
@@ -442,10 +442,13 @@ header { display: flex; align-items: center; justify-content: space-between; pad
   /* Hide original cache badge from section-head on mobile */
   #cacheBadge { display: none !important; }
   /* Show mobile cache badge below title */
-  .cache-badge-mobile {
+  .cache-badge-mobile.from-cache {
     display: inline-block !important;
     margin-top: 8px;
   }
+  /* v9 badge text is longer: let the badge wrap under the title */
+  .section-head > div:first-child { flex-wrap: wrap !important; overflow: visible; }
+  .certainty-badge { white-space: normal; }
 }
 .cache-badge-mobile { display: none; }
 
@@ -1028,6 +1031,40 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
 
 /* Results hidden by default */
 .results-sections { display: none; }
+
+/* ── v9: evidence state, outcomes table, citations, methods, footer ── */
+.state-banner { display:none; margin: 0 0 18px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); font-size: 12.5px; line-height: 1.6; color: rgba(255,255,255,0.78); background: rgba(255,255,255,0.025); }
+.state-banner strong { color: rgba(255,255,255,0.95); font-weight: 600; }
+.state-banner.st-insufficient { border-color: rgba(200,130,60,0.45); background: rgba(200,130,60,0.06); }
+.state-banner.st-conflicting { border-color: rgba(200,175,60,0.45); }
+.state-banner.st-consistent_null { border-color: rgba(220,220,235,0.30); }
+.spectrum-zone.suppressed { opacity: 0.18; filter: grayscale(1); pointer-events: none; }
+.sof { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sof th { text-align: left; font-family: 'DM Mono', monospace; font-weight: 400; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); padding: 0 10px 10px 0; border-bottom: 1px solid var(--border); }
+.sof td { padding: 12px 10px 12px 0; border-bottom: 1px solid var(--border-soft); vertical-align: top; color: rgba(255,255,255,0.78); line-height: 1.5; }
+.sof td .sub { display:block; font-size: 10.5px; color: var(--text-muted); margin-top: 3px; }
+.sof-state { display:inline-block; font-family: 'DM Mono', monospace; font-size: 9.5px; letter-spacing: 0.06em; padding: 3px 7px; border-radius: 4px; border: 1px solid var(--border); white-space: nowrap; }
+.sof-state.consistent_benefit { color: #7fb8e0; border-color: rgba(78,152,200,0.45); }
+.sof-state.consistent_harm { color: #e08a8a; border-color: rgba(204,92,92,0.45); }
+.sof-state.consistent_null { color: rgba(255,255,255,0.8); border-color: rgba(255,255,255,0.25); }
+.sof-state.conflicting { color: #d9c066; border-color: rgba(200,175,60,0.45); }
+.sof-state.inconclusive, .sof-state.insufficient { color: var(--text-muted); }
+.sof-wrap { overflow-x: auto; }
+.cite { font-family: 'DM Mono', monospace; font-size: 9.5px; color: #7fb8e0; cursor: pointer; vertical-align: super; margin-left: 1px; text-decoration: none; }
+.cite:hover { text-decoration: underline; }
+.methods-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 18px; font-size: 12px; color: rgba(255,255,255,0.72); }
+.methods-grid .k { font-family:'DM Mono', monospace; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); display:block; margin-bottom: 2px; }
+.methods-list { margin-top: 16px; font-size: 11.5px; line-height: 1.7; color: rgba(255,255,255,0.65); }
+.methods-list code { font-family:'DM Mono', monospace; font-size: 10.5px; color: rgba(255,255,255,0.8); word-break: break-word; }
+.warn-list { margin-top: 14px; padding: 10px 12px; border-left: 2px solid var(--orange); font-size: 11.5px; line-height: 1.6; color: rgba(255,255,255,0.75); background: rgba(200,125,58,0.05); }
+.finding { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: rgba(255,255,255,0.025); border: 1px solid var(--border-soft); font-size: 12px; line-height: 1.55; color: rgba(255,255,255,0.75); }
+.finding .f-head { font-family:'DM Mono', monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 5px; }
+.finding blockquote { margin-top: 6px; padding-left: 9px; border-left: 2px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.62); font-style: italic; }
+.flag { display:inline-block; font-family:'DM Mono', monospace; font-size: 9px; padding: 2px 6px; border-radius: 3px; border: 1px solid rgba(200,125,58,0.4); color: #d9a066; margin: 6px 6px 0 0; }
+.site-footer { position: relative; z-index: 2; max-width: 900px; margin: 0 auto; padding: 24px var(--pad) 60px; font-size: 11px; line-height: 1.7; color: var(--text-muted); border-top: 1px solid var(--border-soft); }
+.site-footer a { color: rgba(255,255,255,0.6); }
+:focus-visible { outline: 2px solid #7fb8e0; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
 </style>
 </head>
 <body>
@@ -1056,8 +1093,8 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
 
   <!-- HERO SEARCH -->
   <section class="hero" id="hero">
-    <div class="hero-eyebrow">What does the science actually say?</div>
-    <h1 class="hero-title">Search the <em>entire</em> body of published science</h1>
+    <div class="hero-eyebrow">Evidence synthesis from PubMed, Europe PMC, Semantic Scholar &amp; OpenAlex</div>
+    <h1 class="hero-title">What does the <em>published</em> science say?</h1>
     <p class="hero-sub" id="heroSub">Verity aggregates peer-reviewed research and media coverage — no opinions, no headlines, just evidence.</p>
     <div class="search-wrap">
       <div class="search-box">
@@ -1082,13 +1119,13 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
                 <input type="checkbox" id="deepModeCheck">
                 <div class="settings-option-content">
                   <div class="settings-label">Deep research mode</div>
-                  <div class="settings-desc">50-100 studies, 2-3 min</div>
+                  <div class="settings-desc">Up to 60 studies, 1–3 min</div>
                 </div>
               </label>
             </div>
             <div class="settings-section">
               <label class="settings-option">
-                <input type="checkbox" id="trackTopicCheck" checked>
+                <input type="checkbox" id="trackTopicCheck">
                 <div class="settings-option-content">
                   <div class="settings-label">Track this topic</div>
                   <div class="settings-desc">Monitor evidence over time</div>
@@ -1149,7 +1186,7 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
 
   <!-- ERROR -->
   <div class="error-state" id="errorState">
-    <div class="err-title">No results found</div>
+    <div class="err-title" id="errTitle">No results found</div>
     <div class="err-msg" id="errMsg">Unable to fetch results.</div>
     <button class="err-retry" onclick="resetToHero()">← Try again</button>
   </div>
@@ -1167,7 +1204,7 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
   <div class="section">
     <div class="section-head">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1;">
-        <div class="section-title">Consensus Overview</div>
+        <h2 class="section-title">Consensus Overview</h2>
         <div id="certaintyBadge" class="certainty-badge cert-vlow" style="display:none;">
           <div class="cb-dot cert-vlow" id="certDot"></div>
           <span id="certLabel">Very Low certainty</span>
@@ -1176,9 +1213,11 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
         <div id="cacheBadge" class="cache-badge" style="display:none;">Cached</div>
         <div id="deepBadge" class="cache-badge" style="display:none;">Deep Mode</div>
       </div>
-      <div class="section-sub">All scientific findings carry an expiry date.</div>
+      <div class="section-sub" id="consensusSub">Primary outcome</div>
     </div>
     <div class="section-body">
+
+      <div class="state-banner" id="stateBanner" role="status"></div>
 
       <div class="spec-sides">
         <div class="spec-side-l">
@@ -1235,7 +1274,7 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
       <!-- Axis labels -->
       <div class="axis-labels">
         <span class="axis-lbl" id="axisLblLeft">← Concern</span>
-        <span class="axis-lbl-c">Neutral</span>
+        <span class="axis-lbl-c">No effect</span>
         <span class="axis-lbl" id="axisLblRight">Beneficial →</span>
       </div>
       <div style="display:flex;justify-content:center;gap:14px;margin-top:7px;">
@@ -1255,7 +1294,7 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
   <!-- ══ 2. AI SYNTHESIS ══ -->
   <div class="section">
     <div class="section-head">
-      <div class="section-title">AI Synthesis · Claude</div>
+      <h2 class="section-title">AI Synthesis · Claude</h2>
     </div>
     <div class="section-body">
       <div class="verdict-block" id="verdictBlock" style="display:none;">
@@ -1265,7 +1304,7 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
       <div class="ai-tag" id="studyCountTag">Quality-weighted · 15 studies</div>
       <div class="synthesis-wrap collapsed" id="synthesisWrap">
         <div class="ai-text" id="aiTextBody">
-          The preponderance of peer-reviewed research published between 2020–2025 indicates that <strong>well-planned vegan diets are associated with measurable metabolic benefits</strong>, including reduced risks of cardiovascular disease, type 2 diabetes, and all-cause mortality.
+
         </div>
         <div class="synthesis-fade"></div>
       </div>
@@ -1285,6 +1324,17 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
     </div>
   </div>
   <canvas id="shareCanvas"></canvas>
+
+  <!-- ══ 2a. EVIDENCE BY OUTCOME (summary of findings) ══ -->
+  <div class="section" id="outcomesSection" style="display:none;">
+    <div class="section-head">
+      <h2 class="section-title">Evidence by outcome</h2>
+      <div class="section-sub">Benefits and harms are assessed separately</div>
+    </div>
+    <div class="section-body">
+      <div class="sof-wrap"><table class="sof" id="sofTable" aria-label="Summary of findings by outcome"></table></div>
+    </div>
+  </div>
 
   <!-- ══ 2b. DIVERGENCE ANALYSIS ══ -->
   <div class="section divanalysis-section" id="divanalysisSection">
@@ -1356,8 +1406,21 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
     </div>
   </div>
 
+  <!-- METHODS & REPRODUCIBILITY -->
+  <div class="section" id="methodsSection" style="display:none;">
+    <div class="section-head">
+      <h2 class="section-title">Methods &amp; sources</h2>
+      <div class="section-sub">How this answer was produced</div>
+    </div>
+    <div class="section-body" id="methodsBody"></div>
+  </div>
+
   </div><!-- /results-sections -->
 
+<footer class="site-footer" role="contentinfo">
+    <strong>Not medical advice.</strong> Verity summarises published research using automated retrieval and AI-assisted extraction, which can make mistakes. It does not replace a qualified health professional, and individual circumstances matter. Check the linked studies before relying on any finding.
+    <br>Paper metadata: PubMed / NCBI, Europe PMC, Semantic Scholar and OpenAlex (CC0). News: The Guardian Open Platform, Google News, Bing News. <a href="/about.html">Methodology</a>
+  </footer>
 </div><!-- /page -->
 
 <!-- Sidebar Panel -->
@@ -1378,9 +1441,9 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
       <div class="sb-pos-marker" id="sbMarker" style="left:50%; background:#fff;"></div>
     </div>
     <div class="sb-pos-labels">
-      <span class="sb-pos-lbl" style="color:rgba(200,80,80,0.5);">Concern</span>
-      <span class="sb-pos-lbl" style="color:rgba(255,255,255,0.14);">Neutral</span>
-      <span class="sb-pos-lbl" style="color:rgba(60,130,210,0.5);">Benefit</span>
+      <span class="sb-pos-lbl" style="color:rgba(200,80,80,0.7);">Harmful</span>
+      <span class="sb-pos-lbl" style="color:rgba(255,255,255,0.45);">No effect</span>
+      <span class="sb-pos-lbl" style="color:rgba(60,130,210,0.7);">Beneficial</span>
     </div>
   </div>
 
@@ -1401,60 +1464,51 @@ body.sidebar-open .strip-svg { cursor: crosshair; }
   <div class="tt-title" id="ttTitle"></div>
   <div class="tt-row"><span class="tt-key">Source</span><span class="tt-val" id="ttSrc"></span></div>
   <div class="tt-row"><span class="tt-key">Year</span><span class="tt-val" id="ttYear"></span></div>
-  <div class="tt-row"><span class="tt-key">Reach</span><span class="tt-val" id="ttCites"></span></div>
+  <div class="tt-row"><span class="tt-key" id="ttCitesKey">Sample</span><span class="tt-val" id="ttCites"></span></div>
   <div class="tt-row"><span class="tt-key">Weight</span><span class="tt-val" id="ttWeight"></span></div>
   <div id="ttBadge" class="tt-badge"></div>
 </div>
 
 <script>
-const scienceDots = [
-  { title:"Plant-based diets and long-term health: systematic review (49 meta-analyses, n=3.2M)", journal:"The Lancet Planetary Health", year:2023, cites:312, x:0.76, weight:5, type:"meta"   },
-  { title:"Vegan diet & CVD risk factors: 16-week RCT (n=244)",                                  journal:"NEJM",                        year:2024, cites:198, x:0.72, weight:4, type:"rct"    },
-  { title:"EPIC-Oxford cohort: T2D risk in vegans over 10 years (n=66,485)",                     journal:"BMJ",                         year:2022, cites:441, x:0.80, weight:5, type:"cohort" },
-  { title:"B12 & DHA deficiency in strict vegans without supplementation (n=4,200)",             journal:"JAMA Network Open",           year:2022, cites:287, x:0.22, weight:4, type:"rct"    },
-  { title:"Sarcopenia and plant-based protein in adults 60+ over 4 years (n=890)",               journal:"J. Gerontology",              year:2023, cites:156, x:0.28, weight:3, type:"cohort" },
-  { title:"Mental health outcomes: vegans vs omnivores meta-analysis (n=149,559)",               journal:"Nutrients",                   year:2024, cites:87,  x:0.50, weight:3, type:"meta"   },
-  { title:"Vegan diet & all-cause mortality: 12-year prospective cohort (n=22,420)",             journal:"Am. J. Clinical Nutrition",   year:2023, cites:203, x:0.70, weight:4, type:"cohort" },
-  { title:"Iodine deficiency in long-term vegans (n=1,100)",                                     journal:"Eur. J. Nutrition",           year:2021, cites:134, x:0.18, weight:2, type:"obs"    },
-  { title:"Gut microbiome diversity on plant-based diets: 8-week RCT (n=180)",                   journal:"Cell Host & Microbe",         year:2022, cites:420, x:0.82, weight:4, type:"rct"    },
-  { title:"Inflammatory markers: vegans vs omnivores observational (n=560)",                     journal:"Nutrients",                   year:2023, cites:62,  x:0.65, weight:2, type:"obs"    },
-  { title:"Bone mineral density in long-term vegans: EPIC-Oxford substudy",                      journal:"Bone",                        year:2021, cites:189, x:0.30, weight:3, type:"cohort" },
-  { title:"Vegan athletes: performance & recovery — systematic review",                          journal:"Sports Medicine",             year:2024, cites:74,  x:0.60, weight:3, type:"meta"   },
-  { title:"Omega-3 status in vegans: DHA/EPA supplementation RCT (n=300)",                      journal:"PLEFA",                       year:2022, cites:98,  x:0.45, weight:3, type:"rct"    },
-  { title:"Child growth and development on vegan diets: cohort (n=2,800)",                       journal:"Pediatrics",                  year:2023, cites:165, x:0.35, weight:4, type:"cohort" },
-  { title:"Cardiovascular mortality: plant-based patterns meta-analysis (27 cohorts)",           journal:"Circulation",                 year:2024, cites:285, x:0.78, weight:5, type:"meta"   },
-];
+// Populated from the API response — no demo data.
+const scienceDots = [];
+const mediaDots = [];
 
-const mediaDots = [
-  { title:"Why Going Vegan Is the Single Best Thing You Can Do for Your Health", outlet:"Vox",             year:2023, x:0.90, weight:4, type:"media" },
-  { title:"The Hidden Dangers of Plant-Based Diets Doctors Won't Tell You",     outlet:"Daily Mail",      year:2024, x:0.14, weight:3, type:"media" },
-  { title:"What science actually says about vegan diets",                        outlet:"The Guardian",    year:2023, x:0.78, weight:4, type:"media" },
-  { title:"Can you really get enough protein on a vegan diet?",                  outlet:"BBC Future",      year:2024, x:0.52, weight:3, type:"media" },
-  { title:"Vegan diets linked to heart disease risk, new study suggests",        outlet:"New York Post",   year:2023, x:0.20, weight:3, type:"media" },
-  { title:"How a plant-based diet transformed this athlete's performance",       outlet:"Men's Health",    year:2024, x:0.88, weight:3, type:"media" },
-  { title:"The inconvenient truth about veganism and nutrient deficiencies",     outlet:"The Atlantic",    year:2023, x:0.38, weight:4, type:"media" },
-  { title:"Going vegan could add years to your life, researchers say",           outlet:"CNN Health",      year:2024, x:0.85, weight:4, type:"media" },
-  { title:"Vegan boom: Is the plant-based movement running out of steam?",       outlet:"Time",            year:2023, x:0.55, weight:3, type:"media" },
-  { title:"Study: vegans have lower B12 — and it matters more than you think",   outlet:"Healthline",      year:2022, x:0.32, weight:3, type:"media" },
-  { title:"Why every doctor I know is recommending plant-based eating now",      outlet:"Huffington Post", year:2024, x:0.92, weight:2, type:"media" },
-  { title:"Children raised vegan: what the science really shows",                outlet:"The Economist",   year:2023, x:0.44, weight:4, type:"media" },
-];
+// Every API string goes through esc() before touching innerHTML.
+function esc(v) {
+  return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function safeUrl(u) { return /^https?:\/\//i.test(String(u || '')) ? String(u) : ''; }
 
 let showSci=true, showMed=true;
 
 function paperUrl(data) {
   if (data.doi && data.doi.length > 4) {
     const raw = data.doi.replace(/^doi:/i, '').trim();
-    return 'https://doi.org/' + raw;
+    return 'https://doi.org/' + encodeURI(raw);
   }
   if (data.pmid && String(data.pmid).length > 2) {
-    return 'https://pubmed.ncbi.nlm.nih.gov/' + data.pmid + '/';
+    return 'https://pubmed.ncbi.nlm.nih.gov/' + encodeURIComponent(data.pmid) + '/';
   }
   const q = encodeURIComponent('"' + (data.title || '').slice(0, 80) + '"');
   return 'https://pubmed.ncbi.nlm.nih.gov/?term=' + q;
 }
 
-function typeLabel(t) { return {meta:'Meta-analysis',rct:'RCT',cohort:'Cohort Study',obs:'Observational',media:'Media Article'}[t]||t; }
+const DESIGN_LABEL = {
+  umbrella:'Umbrella review', meta:'Systematic review / meta-analysis', rct:'Randomised trial', nonrandomized_trial:'Non-randomised trial',
+  cohort:'Cohort study', case_control:'Case-control', cross_sectional:'Cross-sectional', obs:'Observational',
+  narrative_review:'Narrative review', case_report:'Case report', animal:'Animal study', in_vitro:'Lab (in vitro)', unknown:'Design unclear', media:'Media article',
+};
+function typeLabel(t) { return DESIGN_LABEL[t] || t; }
+// Strip styling buckets
+function stripType(design) {
+  return ['meta','umbrella'].includes(design) ? 'meta' : design === 'rct' ? 'rct' : design === 'cohort' ? 'cohort' : 'obs';
+}
+const DIR_LABEL = { beneficial:'Beneficial', harmful:'Harmful', null:'No significant effect', mixed:'Mixed' };
+const STATE_LABEL = {
+  insufficient:'Not enough evidence', consistent_benefit:'Consistent benefit', consistent_harm:'Consistent harm',
+  consistent_null:'No clear effect', conflicting:'Studies disagree', inconclusive:'Inconclusive',
+};
 
 // ── STRIP RENDERING ───────────────────────────────────────────────
 // Tick heights by weight (science rail, in px, growing up from axis)
@@ -1582,9 +1636,9 @@ function buildStrip() {
   // ── AXIS LABELS — placed BELOW entire media rail, never clashing ──
   const lblY = SCI_RAIL_H + AXIS_H + MED_RAIL_H - 2; // bottom of SVG
   [
-    [0,   'Concern', 'start',  'rgba(180,80,80,0.40)'],
-    [0.5, 'Neutral', 'middle', 'rgba(255,255,255,0.14)'],
-    [1,   'Benefit', 'end',    'rgba(70,130,190,0.40)'],
+    [0,   window._axisLeftLabelTitle  || 'Harmful',    'start',  'rgba(220,110,110,0.75)'],
+    [0.5, 'No effect',                                 'middle', 'rgba(255,255,255,0.45)'],
+    [1,   window._axisRightLabelTitle || 'Beneficial', 'end',    'rgba(110,160,220,0.75)'],
   ].forEach(([v, text, anchor, fill]) => {
     const lbl = mkEl('text');
     lbl.setAttribute('x', tx(v));
@@ -1714,58 +1768,27 @@ function buildStrip() {
     false, 'media'
   );
 
-  // ── AVERAGE MARKERS — instrument blades, consistent for both rails ──
-  function drawAvg(dots, above, color, label) {
-    // Guard: skip if no dots or weights sum to zero
-    if (!dots || dots.length === 0) return;
-    const tw = dots.reduce((s,d) => s + (d.weight || 2), 0);
-    if (!tw || tw === 0) return;
-    const ax = dots.reduce((s,d) => s + d.x * (d.weight || 2), 0) / tw;
-    if (isNaN(ax)) return;
-    const nx = tx(ax);
-    if (isNaN(nx)) return;
-
-    // Blade must always extend beyond the tallest possible tick in its rail:
-    // Science ticks max at TICK_H[5]=34px above axis → blade needs 34+12=46px
-    // Media ticks max at safeH(5)*0.75=~25px below axis → blade needs 25+12=37px
+  // ── CONSENSUS MARKERS ──
+  // The marker is the engine's computed position (same number as the
+  // meter above), not a re-average of dot positions — so the strip and
+  // the percentage can never disagree.
+  function drawMarker(pct, above, color, label) {
+    if (pct == null || isNaN(pct)) return;
+    const nx = tx(pct / 100);
     const bladeLen = above ? 46 : 37;
-
-    // Thin full-height blade spanning entire rail
-    const fullBlade = mkEl('line');
-    fullBlade.setAttribute('x1', nx); fullBlade.setAttribute('x2', nx);
-    fullBlade.setAttribute('y1', above ? axisY - bladeLen : axisY);
-    fullBlade.setAttribute('y2', above ? axisY            : axisY + bladeLen);
-    fullBlade.setAttribute('stroke', color);
-    fullBlade.setAttribute('stroke-width', '1');
-    svg.appendChild(fullBlade);
-
-    // Tick notch on axis — a short perpendicular cross mark
-    const notch = mkEl('line');
-    notch.setAttribute('x1', nx - 3); notch.setAttribute('x2', nx + 3);
-    notch.setAttribute('y1', axisY);   notch.setAttribute('y2', axisY);
-    notch.setAttribute('stroke', color);
-    notch.setAttribute('stroke-width', '2');
-    notch.setAttribute('stroke-linecap', 'square');
-    svg.appendChild(notch);
-
-    // Circle cap at tip — science at top, media at bottom
-    const capY  = above ? axisY - bladeLen : axisY + bladeLen;
-    const capR  = 3.5;
-    const cap   = mkEl('circle');
-    cap.setAttribute('cx', nx); cap.setAttribute('cy', capY); cap.setAttribute('r', capR);
-    cap.setAttribute('fill', color);
-    cap.setAttribute('stroke', 'none');
+    const blade = mkEl('line');
+    blade.setAttribute('x1', nx); blade.setAttribute('x2', nx);
+    blade.setAttribute('y1', above ? axisY - bladeLen : axisY);
+    blade.setAttribute('y2', above ? axisY : axisY + bladeLen);
+    blade.setAttribute('stroke', color); blade.setAttribute('stroke-width', '1');
+    svg.appendChild(blade);
+    const cap = mkEl('circle');
+    cap.setAttribute('cx', nx); cap.setAttribute('cy', above ? axisY - bladeLen : axisY + bladeLen);
+    cap.setAttribute('r', 3.5); cap.setAttribute('fill', color);
     svg.appendChild(cap);
-
-    // Label — pinned safely: sci avg above the blade top, media avg below blade bottom
     const lbl = mkEl('text');
     lbl.setAttribute('x', nx + 5);
-    // Science: label at very top of science rail (y=9 area)
-    // Media: label just below the blade end, but capped so it doesn't hit axis labels
-    const safeY = above
-      ? Math.max(8, axisY - bladeLen - 4)          // above the blade, near top of sci rail
-      : Math.min(SCI_RAIL_H + AXIS_H + MED_RAIL_H - 14, axisY + bladeLen + 9); // below blade
-    lbl.setAttribute('y', safeY);
+    lbl.setAttribute('y', above ? Math.max(8, axisY - bladeLen - 4) : Math.min(SCI_RAIL_H + AXIS_H + MED_RAIL_H - 14, axisY + bladeLen + 9));
     lbl.setAttribute('fill', color);
     lbl.setAttribute('font-family', 'DM Mono, monospace');
     lbl.setAttribute('font-size', '6.5');
@@ -1774,35 +1797,11 @@ function buildStrip() {
     svg.appendChild(lbl);
   }
 
-  if (showSci) drawAvg(scienceDots, true,  'rgba(255,255,255,0.60)',   'SCI AVG');
-  if (showMed)  drawAvg(mediaDots,  false, 'rgba(195,138,62,0.72)',   'MEDIA AVG');
+  if (showSci && window._sciPct != null && !window._suppressMeter) drawMarker(window._sciPct, true, 'rgba(255,255,255,0.70)', 'SCIENCE');
+  if (showMed && window._medPct != null) drawMarker(window._medPct, false, 'rgba(195,138,62,0.80)', 'MEDIA');
 
-  // ── Strip calibration note: explain AVG vs consensus score when they look different ──
-  // The SCI AVG is a weighted position average of ALL studies including mixed ones.
-  // The consensus score only counts studies with clear directional stances.
-  // These legitimately differ. Explain it when the gap is noticeable.
-  const noteEl = document.getElementById('stripNote');
-  if (noteEl && showSci && scienceDots.length > 0 && window._sciPct != null) {
-    const tw  = scienceDots.reduce((s,d) => s + (d.weight||2), 0) || 1;
-    const ax  = scienceDots.reduce((s,d) => s + d.x*(d.weight||2), 0) / tw;
-    const avgPct = Math.round(ax * 100);
-    const conPct = window._sciPct;
-    const gap    = Math.abs(conPct - avgPct);
-
-    // Count mixed/neutral studies
-    const mixed = scienceDots.filter(d => !d.note || d.note === '' ||
-      (d.x > 0.35 && d.x < 0.65)).length;
-
-    if (gap >= 15 && mixed > 0) {
-      noteEl.style.display = 'flex';
-      noteEl.innerHTML = `<span style="opacity:0.45;font-size:10px;flex-shrink:0;">ℹ</span>
-        <span>The consensus score (${conPct}%) counts only studies with a clear directional finding. The strip average includes ${mixed} mixed or neutral studies that pull toward centre — both are correct, they measure different things.</span>`;
-    } else {
-      noteEl.style.display = 'none';
-    }
-  }
-
-  document.getElementById('divBar').style.display = showMed ? 'flex' : 'none';
+  if (!showMed) document.getElementById('divBar').style.display = 'none';
+  else if (window._sciPct != null && window._medPct != null) document.getElementById('divBar').style.display = 'flex';
 }
 
 // Inject keyframe
@@ -1820,11 +1819,13 @@ function showTip(e, d) {
   const isMed = d.type === 'media';
   document.getElementById('ttTitle').textContent  = d.title;
   document.getElementById('ttSrc').textContent    = isMed ? d.outlet : d.journal;
-  document.getElementById('ttYear').textContent   = d.year;
-  document.getElementById('ttCites').textContent  = isMed ? (d.weight*10)+'M reach' : d.cites+' citations';
-  document.getElementById('ttWeight').textContent = '★'.repeat(d.weight)+'☆'.repeat(5-d.weight);
+  document.getElementById('ttYear').textContent   = d.year ?? '—';
+  document.getElementById('ttCitesKey').textContent = isMed ? 'Framing' : 'Sample';
+  document.getElementById('ttCites').textContent  = isMed ? (DIR_LABEL[d.stance] || 'No clear framing') : (d.sampleSize ? 'n = ' + d.sampleSize.toLocaleString() : 'not reported');
+  const w = Math.min(5, Math.max(1, Math.round(d.weight) || 1));
+  document.getElementById('ttWeight').textContent = '★'.repeat(w) + '☆'.repeat(5 - w);
   const b = document.getElementById('ttBadge');
-  b.textContent = typeLabel(d.type); b.className = `tt-badge ${d.type}`;
+  b.textContent = isMed ? 'Media article' : typeLabel(d.design); b.className = `tt-badge ${d.type}`;
   moveTip(e); tipEl.classList.add('show');
 }
 function moveTip(e) {
@@ -1856,34 +1857,6 @@ window.addEventListener('resize', () => { if (scienceDots.length) buildStrip(); 
 let activeEntry = null;   // currently selected data item
 let activeTab   = 'detail';
 let activeTickEl = null;  // highlighted SVG element
-
-// Media framing descriptions (curated per article)
-const mediaFraming = {
-  "Why Going Vegan Is the Single Best Thing You Can Do for Your Health":
-    "Frames veganism as unequivocally health-positive. Does not mention B12, bone density, or protein concerns.",
-  "The Hidden Dangers of Plant-Based Diets Doctors Won't Tell You":
-    "Leads with deficiency risks. Cites nutritional concerns without balancing against CVD benefits.",
-  "What science actually says about vegan diets":
-    "Balanced coverage acknowledging both metabolic benefits and supplementation requirements.",
-  "Can you really get enough protein on a vegan diet?":
-    "Focuses specifically on protein quality. Acknowledges plant-based adequacy with planning.",
-  "Vegan diets linked to heart disease risk, new study suggests":
-    "Emphasises one study on haemorrhagic stroke risk. Does not mention the broader CVD benefit literature.",
-  "How a plant-based diet transformed this athlete's performance":
-    "Anecdotal framing. No citation of systematic evidence on vegan athletic performance.",
-  "The inconvenient truth about veganism and nutrient deficiencies":
-    "Centres on micronutrient gaps. Acknowledges benefits exist but leads with risks.",
-  "Going vegan could add years to your life, researchers say":
-    "Extrapolates longevity claims from mortality data. Omits conditional 'if well-planned' qualifier.",
-  "Vegan boom: Is the plant-based movement running out of steam?":
-    "Trend piece. Science treated as contextual rather than the main subject.",
-  "Study: vegans have lower B12 — and it matters more than you think":
-    "Accurate framing of deficiency data. One of the more evidence-faithful pieces in the set.",
-  "Why every doctor I know is recommending plant-based eating now":
-    "Opinion piece. Overstates physician consensus. No primary citation.",
-  "Children raised vegan: what the science really shows":
-    "Nuanced coverage. Addresses both developmental benefits and supplementation requirements for children.",
-};
 
 function leanClass(x) {
   if (x < 0.38) return 'lean-concern';
@@ -1938,13 +1911,11 @@ function renderSidebar() {
   let markerX = x; // default: selected item
 
   if (activeTab === 'all') {
-    // Use the consensus score from the top bar (73%) — matches displayed percentage
-    markerX = (window._sciPct ?? 73) / 100;
+    markerX = (window._sciPct ?? 50) / 100;
     marker.style.background = 'rgba(235,238,252,0.75)';
     marker.style.boxShadow  = '0 0 8px rgba(235,238,252,0.5)';
   } else if (activeTab === 'media') {
-    // Use the media consensus score from the top bar (81%)
-    markerX = (window._medPct ?? 81) / 100;
+    markerX = (window._medPct ?? 50) / 100;
     marker.style.background = 'rgba(195,138,62,0.85)';
     marker.style.boxShadow  = '0 0 8px rgba(195,138,62,0.6)';
   } else {
@@ -1962,7 +1933,7 @@ function renderSidebar() {
   } else if (activeTab === 'media') {
     eyebrow.textContent = 'Media · weighted average';
   } else {
-    eyebrow.textContent = isMed ? 'Media · ' + data.outlet : typeLabel(data.type) + ' · ' + data.journal;
+    eyebrow.textContent = isMed ? 'Media · ' + data.outlet : typeLabel(data.design) + ' · ' + data.journal;
   }
 
   const content = document.getElementById('sbContent');
@@ -1976,174 +1947,127 @@ function renderSidebar() {
   }
 }
 
-function renderDetail(el, data, layer) {
-  const isMed = layer === 'media';
+function renderFindings(d) {
+  if (!d.findings || !d.findings.length) {
+    return `<div class="finding">${d.extracted ? 'No result for the question outcomes was reported in the abstract.' : 'This paper could not be extracted, so it is not counted in the score.'}</div>`;
+  }
+  return d.findings.map(f => {
+    const eff = f.effect ? `<div>${esc(f.effect.measure)} ${esc(f.effect.point)}${f.effect.ciLow != null ? ` (95% CI ${esc(f.effect.ciLow)}–${esc(f.effect.ciHigh)})` : ''}</div>` : '';
+    return `<div class="finding">
+      <div class="f-head">${esc(f.outcomeName)} · ${esc(DIR_LABEL[f.direction] || f.direction)}</div>
+      ${f.note ? `<div>${esc(f.note)}</div>` : ''}${eff}
+      ${f.quote ? `<blockquote>“${esc(f.quote)}”</blockquote>` : ''}
+      ${f.grounded === false ? '<span class="flag">Quote not found verbatim in abstract — down-weighted</span>' : ''}
+    </div>`;
+  }).join('');
+}
 
-  if (isMed) {
-    // Media detail view
-    const framing = mediaFraming[data.title] || 'Framing analysis not available.';
+function paperFlags(d) {
+  const flags = [];
+  if (d.preprint) flags.push('Preprint (not peer reviewed)');
+  if (d.humans === false) flags.push('Non-human study — excluded from score');
+  if (d.funding?.industrySponsored) flags.push('Industry funding identified');
+  if (d.relevanceUnchecked) flags.push('Relevance not screened');
+  if (!d.sampleSize) flags.push('Sample size not reported');
+  return flags.map(f => `<span class="flag">${esc(f)}</span>`).join('');
+}
+
+function renderDetail(el, data, layer) {
+  if (layer === 'media') {
+    const url = safeUrl(data.url);
     el.innerHTML = `
       <div class="sb-entry active ${leanClass(data.x)}" style="cursor:default;">
-        <div class="sb-entry-header">
-          <div class="sb-entry-title">${data.title}</div>
-        </div>
+        <div class="sb-entry-header"><div class="sb-entry-title">${esc(data.title)}</div></div>
         <div class="sb-entry-meta">
-          <span class="sb-meta-val">${data.outlet}</span>
-          <span class="sb-meta-val">${data.year}</span>
+          <span class="sb-meta-val">${esc(data.outlet)}</span>
+          <span class="sb-meta-val">${esc(data.year ?? '')}</span>
           <span class="sb-badge media">Media</span>
         </div>
         <div class="sb-abstract" style="display:block;">
-          <strong style="color:rgba(195,138,62,0.7);font-weight:500;">Framing analysis</strong><br>
-          ${framing}
+          <strong style="color:rgba(195,138,62,0.9);font-weight:500;">Headline framing: ${esc(DIR_LABEL[data.stance] || 'no clear position')}</strong><br>
+          ${esc(data.framing || 'No framing note available.')}
         </div>
-      </div>
-      <div class="sb-section-divider">Related scientific evidence</div>
-      ${getRelatedScience(data.x).map(s => renderScienceEntry(s, false)).join('')}`;
-  } else {
-    // Science detail view
-    el.innerHTML = `
-      <div class="sb-entry active ${leanClass(data.x)}" style="cursor:default;">
-        <div class="sb-entry-header">
-          <div class="sb-entry-title">${data.title}</div>
-          <div class="sb-weight">${'●'.repeat(data.weight)}${'○'.repeat(5-data.weight)}</div>
-        </div>
-        <div class="sb-entry-meta">
-          <span class="sb-meta-val">${data.journal}</span>
-          <span class="sb-meta-val">${data.year}</span>
-          <span class="sb-meta-val">${data.cites} citations</span>
-          <span class="sb-badge ${data.type}">${typeLabel(data.type)}</span>
-        </div>
-        <div class="sb-abstract" style="display:block;">
-          ${getAbstract(data.title)}
-        </div>
-        <a class="sb-doi" href="${paperUrl(data)}" target="_blank" rel="noopener">↗ View full paper</a>
-      </div>
-      <div class="sb-section-divider">Media coverage of this finding</div>
-      ${getRelatedMedia(data.x).map(m => renderMediaEntry(m, false)).join('')}`;
+        ${url ? `<a class="sb-doi" href="${esc(url)}" target="_blank" rel="noopener noreferrer">↗ Read article</a>` : ''}
+      </div>`;
+    return;
   }
+  const w = Math.min(5, Math.max(1, Math.round(data.weight) || 1));
+  el.innerHTML = `
+    <div class="sb-entry active ${leanClass(data.x)}" style="cursor:default;">
+      <div class="sb-entry-header">
+        <div class="sb-entry-title">${esc(data.title)}</div>
+        <div class="sb-weight" title="Evidence weight in the score">${'●'.repeat(w)}${'○'.repeat(5 - w)}</div>
+      </div>
+      <div class="sb-entry-meta">
+        <span class="sb-meta-val">${esc(data.journal)}</span>
+        <span class="sb-meta-val">${esc(data.year ?? '')}</span>
+        ${data.sampleSize ? `<span class="sb-meta-val">n = ${esc(data.sampleSize.toLocaleString())}</span>` : ''}
+        <span class="sb-badge ${esc(data.type)}">${esc(typeLabel(data.design))}</span>
+      </div>
+      <div>${paperFlags(data)}</div>
+      ${renderFindings(data)}
+      <details style="margin-top:12px;"><summary style="cursor:pointer;font-size:11px;color:var(--text-muted);">Abstract</summary>
+        <div class="sb-abstract" style="display:block;">${esc(data.abstract || 'Abstract not available.')}</div>
+      </details>
+      ${data.funding?.sources?.length ? `<div style="margin-top:10px;font-size:11px;color:var(--text-muted);">Funding: ${esc(data.funding.sources.slice(0, 4).join(', '))}</div>` : ''}
+      <a class="sb-doi" href="${esc(paperUrl(data))}" target="_blank" rel="noopener noreferrer">↗ View full paper</a>
+    </div>`;
 }
 
 function renderAllStudies(el, activeData) {
-  const sorted = [...scienceDots].sort((a,b) => a.x - b.x);
-  el.innerHTML = sorted.map(d =>
-    renderScienceEntry(d, d === activeData || d.title === activeData.title)
-  ).join('');
-
-  // Click handlers
-  el.querySelectorAll('.sb-entry[data-idx]').forEach(row => {
-    row.addEventListener('click', () => {
-      const d = scienceDots.find(s => s.title === row.dataset.title);
-      if (d) {
-        activeEntry = { data: d, layer: 'science' };
-        switchTab('detail');
-      }
+  const sorted = [...scienceDots].sort((a, b) => a.x - b.x);
+  el.innerHTML = sorted.map((d, i) => renderScienceEntry(d, d === activeData, i)).join('');
+  el.querySelectorAll('.sb-entry[data-i]').forEach(row => {
+    row.addEventListener('click', e => {
+      if (e.target.closest('a')) return;
+      activeEntry = { data: sorted[Number(row.dataset.i)], layer: 'science' };
+      switchTab('detail');
     });
   });
 }
 
 function renderMediaCoverage(el, activeData, layer) {
-  const sorted = [...mediaDots].sort((a,b) => a.x - b.x);
-  el.innerHTML = sorted.map(m =>
-    renderMediaEntry(m, m.title === activeData.title && layer === 'media')
-  ).join('');
-
-  el.querySelectorAll('.sb-entry[data-title]').forEach(row => {
-    row.addEventListener('click', () => {
-      const d = mediaDots.find(m => m.title === row.dataset.title);
-      if (d) {
-        activeEntry = { data: d, layer: 'media' };
-        switchTab('detail');
-      }
+  const sorted = [...mediaDots].sort((a, b) => a.x - b.x);
+  el.innerHTML = sorted.length
+    ? sorted.map((m, i) => renderMediaEntry(m, m === activeData && layer === 'media', i)).join('')
+    : '<div class="finding">No relevant news coverage was found.</div>';
+  el.querySelectorAll('.sb-entry[data-i]').forEach(row => {
+    row.addEventListener('click', e => {
+      if (e.target.closest('a')) return;
+      activeEntry = { data: sorted[Number(row.dataset.i)], layer: 'media' };
+      switchTab('detail');
     });
   });
 }
 
-function renderScienceEntry(d, isActive) {
+function renderScienceEntry(d, isActive, i) {
+  const w = Math.min(5, Math.max(1, Math.round(d.weight) || 1));
   return `
-    <div class="sb-entry ${leanClass(d.x)} ${isActive ? 'active' : ''}" data-title="${d.title.replace(/"/g,'&quot;')}">
+    <div class="sb-entry ${leanClass(d.x)} ${isActive ? 'active' : ''}" data-i="${i}" style="cursor:pointer;">
       <div class="sb-entry-header">
-        <div class="sb-entry-title">${d.title}</div>
-        <div class="sb-weight">${'●'.repeat(d.weight)}${'○'.repeat(5-d.weight)}</div>
+        <div class="sb-entry-title">${esc(d.title)}</div>
+        <div class="sb-weight">${'●'.repeat(w)}${'○'.repeat(5 - w)}</div>
       </div>
       <div class="sb-entry-meta">
-        <span class="sb-meta-val">${d.journal}</span>
-        <span class="sb-meta-val">${d.year}</span>
-        <span class="sb-badge ${d.type}">${typeLabel(d.type)}</span>
+        <span class="sb-meta-val">${esc(d.journal)}</span>
+        <span class="sb-meta-val">${esc(d.year ?? '')}</span>
+        <span class="sb-badge ${esc(d.type)}">${esc(typeLabel(d.design))}</span>
+        <span class="sb-meta-val">${esc(DIR_LABEL[d.direction] || '')}</span>
       </div>
-      ${isActive ? `<div class="sb-abstract" style="display:block;">${getAbstract(d.title)}</div>` : ''}
-      <a class="sb-doi" href="${paperUrl(d)}" target="_blank" rel="noopener" style="margin-top:8px;">↗ View full paper</a>
     </div>`;
 }
 
-function renderMediaEntry(m, isActive) {
-  const framing = mediaFraming[m.title] || '';
+function renderMediaEntry(m, isActive, i) {
   return `
-    <div class="sb-entry ${leanClass(m.x)} ${isActive ? 'active' : ''}" data-title="${m.title.replace(/"/g,'&quot;')}">
-      <div class="sb-entry-header">
-        <div class="sb-entry-title">${m.title}</div>
-      </div>
+    <div class="sb-entry ${leanClass(m.x)} ${isActive ? 'active' : ''}" data-i="${i}" style="cursor:pointer;">
+      <div class="sb-entry-header"><div class="sb-entry-title">${esc(m.title)}</div></div>
       <div class="sb-entry-meta">
-        <span class="sb-meta-val">${m.outlet}</span>
-        <span class="sb-meta-val">${m.year}</span>
+        <span class="sb-meta-val">${esc(m.outlet)}</span>
+        <span class="sb-meta-val">${esc(m.year ?? '')}</span>
+        <span class="sb-meta-val">${esc(DIR_LABEL[m.stance] || 'No clear framing')}</span>
       </div>
-      ${isActive && framing ? `<div class="sb-framing" style="display:block;">${framing}</div>` : ''}
-      ${m.url ? `<a class="sb-doi" href="${m.url}" target="_blank" rel="noopener" style="margin-top:8px;">↗ Read article</a>` : ''}
     </div>`;
 }
-
-// Get science studies near a given x position (within ±0.20)
-function getRelatedScience(x) {
-  return scienceDots
-    .filter(d => Math.abs(d.x - x) < 0.22)
-    .sort((a,b) => b.weight - a.weight)
-    .slice(0, 3);
-}
-
-// Get media articles near a given x position
-function getRelatedMedia(x) {
-  return mediaDots
-    .filter(m => Math.abs(m.x - x) < 0.25)
-    .sort((a,b) => b.weight - a.weight)
-    .slice(0, 3);
-}
-
-// Abstract snippets keyed by title
-function getAbstract(title) {
-  const map = {
-    "Plant-based diets and long-term health: systematic review (49 meta-analyses, n=3.2M)":
-      "Systematic review of 49 meta-analyses (n=3.2M). Vegan and vegetarian diets associated with 18–24% lower risk of ischemic heart disease and 15% reduction in all-cause cancer mortality versus omnivore controls.",
-    "Vegan diet & CVD risk factors: 16-week RCT (n=244)":
-      "RCT of 244 adults with moderate CVD risk. Whole-food plant-based diet produced significantly greater reductions in LDL (−18.7 mg/dL), systolic BP (−4.2 mmHg), and body weight (−4.1 kg) versus control.",
-    "EPIC-Oxford cohort: T2D risk in vegans over 10 years (n=66,485)":
-      "EPIC-Oxford cohort (n=66,485). Substantially lower incidence of type 2 diabetes (HR 0.63, 95% CI 0.54–0.74) and obesity in vegans over 10 years, significant after adjustment for confounders.",
-    "B12 & DHA deficiency in strict vegans without supplementation (n=4,200)":
-      "52% of strict vegans showed suboptimal serum B12 and 38% deficient DHA without supplementation, versus 3% and 8% in omnivores. Supports mandatory supplementation guidance.",
-    "Sarcopenia and plant-based protein in adults 60+ over 4 years (n=890)":
-      "890 adults aged 60+ over 4 years. Exclusively plant-based protein consumers showed 12% greater muscle mass decline versus omnivore counterparts at matched total protein intake. Leucine availability identified as limiting factor.",
-    "Mental health outcomes: vegans vs omnivores meta-analysis (n=149,559)":
-      "18 studies (n=149,559). Mixed evidence: 5 studies reported higher depression in vegans, 4 found no difference. Current evidence does not support a definitive association. More longitudinal RCT data needed.",
-    "Vegan diet & all-cause mortality: 12-year prospective cohort (n=22,420)":
-      "12-year prospective cohort (n=22,420). Vegan diet associated with significantly lower all-cause mortality (HR 0.85, 95% CI 0.74–0.97) after adjustment for lifestyle factors.",
-    "Iodine deficiency in long-term vegans (n=1,100)":
-      "Cross-sectional study of 1,100 adults. Long-term vegans showed significantly lower urinary iodine (median 44 vs 162 μg/L in omnivores). Iodine supplementation or fortification recommended.",
-    "Gut microbiome diversity on plant-based diets: 8-week RCT (n=180)":
-      "8-week RCT (n=180). Whole-food plant-based diet significantly increased microbial diversity and short-chain fatty acid production. Associated with reduced inflammatory markers.",
-    "Inflammatory markers: vegans vs omnivores observational (n=560)":
-      "Observational study (n=560). Vegans showed modestly lower CRP and IL-6 versus omnivores. Effect size small; confounding by lifestyle not fully excluded.",
-    "Bone mineral density in long-term vegans: EPIC-Oxford substudy":
-      "EPIC-Oxford substudy. Long-term vegans had lower bone mineral density and higher fracture risk (HR 1.43) versus meat-eaters, partially attenuated by calcium and vitamin D adequacy.",
-    "Vegan athletes: performance & recovery — systematic review":
-      "Systematic review. Plant-based diets support athletic performance when energy and protein needs are met. Creatine and beta-alanine supplementation may benefit vegan athletes specifically.",
-    "Omega-3 status in vegans: DHA/EPA supplementation RCT (n=300)":
-      "RCT (n=300). Algae-derived DHA/EPA supplementation effectively restored omega-3 status in vegans to levels comparable with fish consumers. Baseline deficiency was significant.",
-    "Child growth and development on vegan diets: cohort (n=2,800)":
-      "Cohort (n=2,800 children). Vegan children showed adequate growth when diets were well-planned and supplemented. Unsupplemented vegan children showed lower B12, vitamin D, and iron.",
-    "Cardiovascular mortality: plant-based patterns meta-analysis (27 cohorts)":
-      "Meta-analysis of 27 cohorts. Plant-based dietary patterns associated with 16% lower cardiovascular mortality. Effect strongest for whole-food plant-based versus processed plant-based diets.",
-  };
-  return map[title] || 'Abstract not available in this preview.';
-}
-
 
 // ══════════════════════════════════════════════
 //  SEARCH + DATA POPULATION
@@ -2244,9 +2168,10 @@ function setLoading(on, stepIdx) {
   }
 }
 
-function showError(msg) {
+function showError(msg, title) {
   setLoading(false);
   document.documentElement.classList.remove('hero-state');
+  document.getElementById('errTitle').textContent = title || 'No results found';
   document.getElementById('errMsg').textContent = msg;
   document.getElementById('errorState').style.display = 'flex';
 }
@@ -2284,104 +2209,86 @@ function toggleSearchSettings() {
   }
 }
 
+let _searchController = null;
+
 async function runSearch() {
   const query = document.getElementById('searchInput').value.trim();
   if (!query) return;
-
   window.lastQuery = query;
 
-  // Get settings from dropdown
   const deepMode = document.getElementById('deepModeCheck')?.checked || false;
   const trackTopic = document.getElementById('trackTopicCheck')?.checked || false;
-
-  // Close settings dropdown
   document.getElementById('searchSettingsDropdown')?.classList.remove('open');
 
-  // Enter compact mode
   document.getElementById('hero').classList.add('compact');
   document.getElementById('resultsSections').style.display = 'none';
   document.getElementById('errorState').style.display = 'none';
-  
-  setLoading(true, 0); // Step 0: reading question
+  closeSidebar();
 
-  // Simulate step progression while the real request is in flight
-  // Deep mode takes longer (~45-60s), adjust timings
-  const stepTimings = deepMode 
-    ? [1000, 6000, 12000, 20000, 35000]  // Longer for deep mode
-    : [800, 3500, 7000, 12000, 18000];   // Standard timing
-  const stepTimers  = stepTimings.map((t, i) => setTimeout(() => setStep(i + 1), t));
+  // The server does not stream progress yet, so the checklist only
+  // signals "still working"; it never claims a step has completed.
+  setLoading(true, 0);
+  const stepTimers = (deepMode ? [2000, 8000, 20000, 45000, 80000] : [1500, 5000, 12000, 25000, 45000])
+    .map((t, i) => setTimeout(() => setStep(i + 1), t));
+
+  // Abort a previous in-flight search, and time out a hung one.
+  if (_searchController) _searchController.abort();
+  const controller = new AbortController();
+  _searchController = controller;
+  const timeoutMs = deepMode ? 300000 : 180000;
+  const timeout = setTimeout(() => controller.abort('timeout'), timeoutMs);
 
   try {
-    // Check for cache bypass URL parameter
-    const urlParams = new URLSearchParams(window.location.search);
-    const forceRefresh = urlParams.has('nocache') || urlParams.has('bypass') || urlParams.has('refresh');
-    
     const res = await fetch('/api/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        query,
-        deepMode,
-        trackTopic,
-        forceRefresh
-      })
+      body: JSON.stringify({ query, deepMode, trackTopic }),
+      signal: controller.signal,
     });
-
-    // Clear pending step timers — result arrived
     stepTimers.forEach(clearTimeout);
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || `Server error ${res.status}`);
+      const titles = { 429: 'Slow down a little', 404: 'Not enough evidence found', 503: 'Temporarily unavailable', 502: 'Literature databases unavailable' };
+      showError(err.error || `Server error ${res.status}`, titles[res.status] || 'Something went wrong');
+      return;
     }
-
-    // Briefly hold on step 5 (computing consensus) so it feels intentional
     setStep(5);
     const data = await res.json();
-    await new Promise(r => setTimeout(r, 400));
 
-    // Debug: log what we received
-    console.log('[Verity] Response:', {
-      papers: data.papers?.length,
-      media:  data.media?.length,
-      sciPct: data.analysis?.debate?.rightPct,
-      medPct: data.mediaAnalysis?.rightPct,
-      certainty: data.meta?.certainty,
-    });
-
-    // Update URL to reflect this search — prevents stale ?q= from autoloading
-    // old query if the page is navigated back to or partially reloaded
     const newUrl = window.location.pathname + '?q=' + encodeURIComponent(query);
-    if (window.location.search !== '?q=' + encodeURIComponent(query)) {
-      history.pushState({ q: query }, '', newUrl);
-    }
+    if (window.location.search !== '?q=' + encodeURIComponent(query)) history.pushState({ q: query }, '', newUrl);
 
     setLoading(false);
     populateFromData(data);
-
   } catch (err) {
-    showError(err.message || 'Something went wrong. Please try again.');
+    stepTimers.forEach(clearTimeout);
+    if (controller.signal.aborted && controller.signal.reason !== 'timeout') return; // superseded by a newer search
+    if (controller.signal.reason === 'timeout') {
+      showError(`The analysis took longer than ${Math.round(timeoutMs / 60000)} minutes and was stopped. Please try again — popular questions are usually cached.`, 'Timed out');
+    } else if (!navigator.onLine) {
+      showError('You appear to be offline. Check your connection and try again.', 'Offline');
+    } else {
+      showError('Could not reach the Verity server. Please try again in a moment.', 'Connection problem');
+    }
+  } finally {
+    clearTimeout(timeout);
+    if (_searchController === controller) _searchController = null;
   }
 }
 
-// ── Map stance + weight → x position on the spectrum (0–1) ──
-function stanceToX(stance, weight) {
-  const w = (weight || 3) / 5;
-  const jitter = (Math.random() * 0.08) - 0.04;
-  if (stance === 'for')     return Math.min(0.95, 0.58 + w * 0.28 + jitter);
-  if (stance === 'against') return Math.max(0.05, 0.42 - w * 0.28 + jitter);
-  // mixed: centre band with spread
-  return 0.36 + Math.random() * 0.28;
+// Media headlines are placed by their classified framing, with a
+// deterministic spread (no Math.random — positions are reproducible).
+function hashSpread(str, amp) {
+  let h = 2166136261;
+  for (const c of String(str)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
+  return ((h >>> 0) / 4294967295 - 0.5) * 2 * amp;
 }
-
-function mediaStanceToX(stance, weight) {
-  const w = (weight || 3) / 4;
-  const jitter = (Math.random() * 0.10) - 0.05;
-  // 'concern' = LEFT (same as science 'against'), 'benefit' = RIGHT (same as science 'for')
-  // Legacy 'pro'/'con' handled for cached results
-  if (stance === 'benefit' || stance === 'pro') return Math.min(0.94, 0.58 + w * 0.26 + jitter);
-  if (stance === 'concern' || stance === 'con') return Math.max(0.06, 0.42 - w * 0.26 + jitter);
-  return 0.36 + Math.random() * 0.28;
+function mediaX(m) {
+  const w = (m.weight || 2) / 4;
+  if (m.stance === 'beneficial') return Math.min(0.94, 0.60 + w * 0.26 + hashSpread(m.title, 0.04));
+  if (m.stance === 'harmful')    return Math.max(0.06, 0.40 - w * 0.26 + hashSpread(m.title, 0.04));
+  return 0.5 + hashSpread(m.title, m.stance === 'null' ? 0.06 : 0.12);
 }
 
 // ── Main data population ──────────────────────────────────────────
@@ -2416,7 +2323,7 @@ function displayFundingAnalysis(fundingData) {
       <div style="margin-bottom: 8px; font-size: 12px; color: var(--text-primary);">
         <strong>Bias Risk:</strong> 
         <span style="color: ${getBiasColor(fundingData.biasRisk)};">
-          ${fundingData.biasRisk.charAt(0).toUpperCase() + fundingData.biasRisk.slice(1)}
+          ${esc(fundingData.biasRisk.charAt(0).toUpperCase() + fundingData.biasRisk.slice(1))}
         </span>
       </div>
     </div>
@@ -2441,7 +2348,7 @@ function displayFundingAnalysis(fundingData) {
       <div style="margin-bottom: 16px;">
         <div style="margin-bottom: 8px; font-size: 12px; color: var(--text-primary);"><strong>Key Funders:</strong></div>
         <div style="font-size: 10px; line-height: 1.4; color: var(--text-muted);">
-          ${topSources.join(', ')}${fundingData.fundingSources.length > 6 ? `, +${fundingData.fundingSources.length - 6} more` : ''}
+          ${esc(topSources.join(', '))}${fundingData.fundingSources.length > 6 ? `, +${fundingData.fundingSources.length - 6} more` : ''}
         </div>
       </div>
     `;
@@ -2451,13 +2358,13 @@ function displayFundingAnalysis(fundingData) {
   if (fundingData.unknownPct >= 80) {
     fundingBreakdown += `
       <div style="padding: 10px 0; font-size: 10px; line-height: 1.4; color: var(--text-muted); border-top: 1px solid var(--border-soft);">
-        ${fundingData.unknownPct}% of studies have unknown funding sources, likely because funding information is typically found in acknowledgments rather than abstracts. This limits transparency assessment but is common in this research area.
+        ${fundingData.unknownPct}% of studies have no funding information in the indexed metadata (it is often only in the full text). Funding is therefore only partly assessed here.
       </div>
     `;
   } else if (fundingData.biasAlerts && fundingData.biasAlerts.length > 0) {
     fundingBreakdown += `
       <div style="padding: 10px 0; font-size: 10px; line-height: 1.4; color: var(--orange); border-top: 1px solid var(--border-soft);">
-        ${fundingData.biasAlerts.join('. ')}.
+        ${esc(fundingData.biasAlerts.join('. '))}.
       </div>
     `;
   } else if (fundingData.biasRisk === 'low') {
@@ -2471,326 +2378,248 @@ function displayFundingAnalysis(fundingData) {
   document.getElementById('fundingContent').innerHTML = fundingBreakdown;
 }
 
+function cap(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
+
+// Safe renderer for synthesis paragraphs: text is escaped, then
+// **bold** markers and [n] citations are turned into markup.
+function renderParagraph(p, rows, papersByRef) {
+  let html = esc(p.text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  const cites = (p.cites || []).filter(n => rows[n - 1]);
+  if (cites.length) {
+    html += ' ' + cites.map(n => {
+      const ref = rows[n - 1].ref;
+      return `<a class="cite" href="#" data-ref="${esc(ref)}" title="${esc(papersByRef.get(ref)?.title || '')}">[${n}]</a>`;
+    }).join('');
+  }
+  return `<p>${html}</p>`;
+}
+
+function stateBannerText(d, primaryName) {
+  const o = esc(primaryName || 'the main outcome');
+  return {
+    insufficient: `<strong>Not enough evidence.</strong> Too few relevant studies were found on ${o} to estimate a direction, so no consensus position is shown.`,
+    consistent_null: `<strong>No clear effect.</strong> Studies on ${o} consistently find no meaningful difference. A position near the centre means "no effect", not "uncertain".`,
+    conflicting: `<strong>Studies disagree.</strong> Well-designed studies on ${o} point in opposite directions — this is a genuine scientific disagreement.`,
+    inconclusive: `<strong>Inconclusive.</strong> The evidence on ${o} does not point clearly in either direction.`,
+  }[d.evidenceState] || '';
+}
+
 function populateFromData(data) {
   const { queryMeta, papers, analysis, media, mediaAnalysis, meta, divergenceAnalysis, fundingAnalysis } = data;
-
-  // 1. Query title + certainty badge
-  document.getElementById('queryTitle').textContent = queryMeta.plain || '';
-  // Save to local history
-  if (queryMeta.plain) saveToHistory(queryMeta.plain);
-
-  // 2. Display funding transparency analysis
-  displayFundingAnalysis(fundingAnalysis);
-
-  // Certainty badge — two distinct signals: directional confidence + causal certainty
-  const certainty      = analysis.debate?.certainty       || meta?.certainty       || 'Very low';
-  const dirConf        = analysis.debate?.directionalConf || 'Moderate';
-  const designQuality  = analysis.debate?.designQuality   || 'unknown';
-  const contradiction  = analysis.debate?.contradiction   || 0;
-  const paperCount     = meta?.paperCount || papers.length;
-
-  // Badge colour is driven by DIRECTIONAL confidence — the signal the user actually cares about
-  const dirKey   = dirConf.toLowerCase();
-  const certClass = { strong: 'cert-high', moderate: 'cert-moderate', mixed: 'cert-low', inconclusive: 'cert-vlow' }[dirKey] || 'cert-vlow';
-  const certColor = { strong: 'rgba(80,190,120,0.85)', moderate: 'rgba(200,175,60,0.85)', mixed: 'rgba(200,130,60,0.85)', inconclusive: 'rgba(200,80,80,0.85)' }[dirKey] || 'rgba(200,80,80,0.85)';
-
-  // Causal certainty maps to a plain explanation of WHY
-  const causalNote = {
-    'High':     'The evidence base includes multiple RCTs or meta-analyses — causation is well-supported.',
-    'Moderate': 'A mix of RCTs and observational studies. Causation is plausible but not fully established.',
-    'Low':      'Mostly observational studies. The association is real but causation cannot be confirmed without controlled trials.',
-    'Very low': designQuality === 'mostly observational'
-      ? 'The evidence is almost entirely observational — consistent association, but causation unproven. This is the norm for long-term dietary and lifestyle research where RCTs are impractical.'
-      : 'Limited studies available. More research is needed before confident conclusions are possible.',
-  }[certainty] || '';
-
-  const dirNote = {
-    strong:      `Evidence points <strong>consistently in one direction</strong> across ${paperCount} studies.`,
-    moderate:    `Evidence is <strong>mostly consistent</strong> across ${paperCount} studies with some variation.`,
-    mixed:       `Evidence is <strong>genuinely mixed</strong> — significant studies point in both directions.`,
-    inconclusive:`Evidence is <strong>sparse or inconclusive</strong> — insufficient data for a confident signal.`,
-  }[dirKey] || '';
-
-  const contNote = contradiction > 0.35
-    ? ` <strong>Genuine disagreement:</strong> the literature is divided — this is a real scientific debate, not just methodological noise.`
-    : '';
-
-  const badge   = document.getElementById('certaintyBadge');
-  const dot     = document.getElementById('certDot');
-  const label   = document.getElementById('certLabel');
-  const tooltip = document.getElementById('certTooltip');
-
-  badge.className       = `certainty-badge ${certClass}`;
-  dot.className         = `cb-dot ${certClass}`;
-  dot.style.background  = certColor;
-  label.textContent     = dirConf + ' signal · ' + paperCount + ' studies';
-  tooltip.innerHTML     = `${dirNote}<br><br><span style="opacity:0.7;font-size:10px;">${causalNote}</span>${contNote}`;
-  badge.style.display   = 'inline-flex';
-
-  // Cache badge
-  const cacheBadge = document.getElementById('cacheBadge');
-  if (meta?.fromCache) {
-    cacheBadge.style.display = 'inline-block';
-    cacheBadge.classList.add('from-cache');
-    cacheBadge.textContent   = '⚡ Cached result';
-    // Mirror to mobile slot
-    const cacheBadgeMobile = document.getElementById('cacheBadgeMobile');
-    if (cacheBadgeMobile) {
-      cacheBadgeMobile.style.display = 'inline-block';
-      cacheBadgeMobile.classList.add('from-cache');
-    }
-  } else {
-    cacheBadge.style.display = 'none';
-  }
-
-  // Deep mode badge
-  const deepBadge = document.getElementById('deepBadge');
-  if (meta?.deepMode) {
-    deepBadge.style.display = 'inline-block';
-    deepBadge.textContent = '🔬 Deep Mode';
-  } else {
-    deepBadge.style.display = 'none';
-  }
-
-  // 2. Consensus bar — side labels
   const d = analysis.debate || {};
   const el = s => document.querySelector(s);
+  const papersByRef = new Map((papers || []).map(p => [p.ref, p]));
+
+  document.getElementById('queryTitle').textContent = queryMeta.plain || '';
+  if (window.lastQuery) saveToHistory(window.lastQuery);
+  displayFundingAnalysis(fundingAnalysis);
+
+  // ── Certainty badge ────────────────────────────────────────────
+  const state = d.evidenceState || 'inconclusive';
+  const certainty = d.certainty || 'Very low';
+  const scored = meta?.flow?.scored ?? papers.length;
+  const certKey = { High: 'cert-high', Moderate: 'cert-moderate', Low: 'cert-low' }[certainty] || 'cert-vlow';
+  const certColor = { High: 'rgba(80,190,120,0.85)', Moderate: 'rgba(200,175,60,0.85)', Low: 'rgba(200,130,60,0.85)' }[certainty] || 'rgba(200,80,80,0.85)';
+  const badge = document.getElementById('certaintyBadge');
+  badge.className = `certainty-badge ${certKey}`;
+  document.getElementById('certDot').className = `cb-dot ${certKey}`;
+  document.getElementById('certDot').style.background = certColor;
+  document.getElementById('certLabel').textContent = `${STATE_LABEL[state] || state} · ${certainty} certainty · ${scored} studies`;
+  document.getElementById('certTooltip').innerHTML =
+    `<strong>${esc(STATE_LABEL[state] || state)}</strong> on ${esc(d.primaryOutcome || 'the primary outcome')}.<br><br>` +
+    `<span style="opacity:0.8;font-size:10px;">Certainty is ${esc(certainty.toLowerCase())} (GRADE-style): ${esc((d.certaintyReasons || []).join('; '))}.</span>`;
+  badge.style.display = 'inline-flex';
+  badge.setAttribute('tabindex', '0');
+
+  const cacheBadge = document.getElementById('cacheBadge');
+  cacheBadge.style.display = meta?.fromCache ? 'inline-block' : 'none';
+  if (meta?.fromCache) { cacheBadge.classList.add('from-cache'); cacheBadge.textContent = '⚡ Cached result'; }
+  const cbm = document.getElementById('cacheBadgeMobile');
+  if (cbm) { cbm.style.display = meta?.fromCache ? 'inline-block' : 'none'; cbm.classList.toggle('from-cache', !!meta?.fromCache); }
+  const deepBadge = document.getElementById('deepBadge');
+  deepBadge.style.display = meta?.deepMode ? 'inline-block' : 'none';
+  if (meta?.deepMode) deepBadge.textContent = '🔬 Deep Mode';
+
+  document.getElementById('consensusSub').textContent = d.primaryOutcome ? `Primary outcome: ${d.primaryOutcome}` : '';
+
+  // ── Spectrum ───────────────────────────────────────────────────
   el('.spec-side-l .spec-name').textContent = d.leftLabel  || queryMeta.leftSide  || '—';
   el('.spec-side-l .spec-desc').textContent = d.leftDesc   || queryMeta.leftDesc  || '';
   el('.spec-side-r .spec-name').textContent = d.rightLabel || queryMeta.rightSide || '—';
   el('.spec-side-r .spec-desc').textContent = d.rightDesc  || queryMeta.rightDesc || '';
 
-  // Axis labels — from frameQuery, topic-specific (e.g. "Harmful" not "Beneficial" for risk topics)
-  const axisR = (d.axisRightLabel || queryMeta.axisRightLabel || 'Beneficial').toLowerCase();
-  const axisL = (d.axisLeftLabel  || queryMeta.axisLeftLabel  || 'No effect').toLowerCase();
+  const axisR = (d.axisRightLabel || queryMeta.axisRightLabel || 'Beneficial');
+  const axisL = (d.axisLeftLabel  || queryMeta.axisLeftLabel  || 'Harmful');
+  window._axisRightLabel = axisR.toLowerCase();  window._axisLeftLabel = axisL.toLowerCase();
+  window._axisRightLabelTitle = cap(axisR);      window._axisLeftLabelTitle = cap(axisL);
+  window._rightLabel = d.rightLabel;             window._leftLabel = d.leftLabel;
+  document.getElementById('axisLblLeft').textContent  = '← ' + cap(axisL);
+  document.getElementById('axisLblRight').textContent = cap(axisR) + ' →';
 
-  // Store globally for share card and divergence bar
-  window._axisRightLabel = axisR;
-  window._axisLeftLabel  = axisL;
+  const suppress = state === 'insufficient';
+  window._suppressMeter = suppress;
+  const banner = document.getElementById('stateBanner');
+  const bannerHtml = stateBannerText(d, d.primaryOutcome);
+  banner.innerHTML = bannerHtml;
+  banner.className = `state-banner st-${state}`;
+  banner.style.display = bannerHtml ? 'block' : 'none';
+  document.getElementById('specZone').classList.toggle('suppressed', suppress);
 
-  // Science pct row
-  el('.pct-row.science .pct-l').textContent = `${d.leftPct ?? '—'}% ${axisL}`;
-  el('.pct-row.science .pct-r').textContent = `${d.rightPct ?? '—'}% ${axisR}`;
-
-  // Media pct row
-  el('.pct-row.media .pct-l').textContent = `${mediaAnalysis.leftPct  ?? '—'}% ${axisL}`;
-  el('.pct-row.media .pct-r').textContent = `${mediaAnalysis.rightPct ?? '—'}% ${axisR}`;
-
-  // Update axis end labels with topic-specific terms
-  const axisLblLeft  = document.getElementById('axisLblLeft');
-  const axisLblRight = document.getElementById('axisLblRight');
-  if (axisLblLeft)  axisLblLeft.textContent  = '← ' + (axisL.charAt(0).toUpperCase() + axisL.slice(1));
-  if (axisLblRight) axisLblRight.textContent = (axisR.charAt(0).toUpperCase() + axisR.slice(1)) + ' →';
-
-  // Animate consensus pins
-  const sciPct = d.rightPct ?? 50;
-  // Only use mediaAnalysis pct if we actually got media articles (not the 50/50 default)
-  const hasMedia = (media || []).length > 0;
-  const medPct = hasMedia ? (mediaAnalysis.rightPct ?? 50) : 50;
-  const divergence = mediaAnalysis.divergence ?? Math.abs(medPct - sciPct);
-
-  // Update strip header with real counts
-  const stripTitleEl = document.getElementById('stripTitle');
-  if (stripTitleEl) {
-    const medCount = (media || []).length;
-    stripTitleEl.textContent = `Evidence Strip · ${papers.length} Studies${medCount > 0 ? ' + ' + medCount + ' Media' : ''}`;
-  }
-
-  // Show/hide media toggle based on whether we have media data
-  const tMedBtn = document.getElementById('tMed');
-  if (tMedBtn) {
-    tMedBtn.style.opacity = hasMedia ? '1' : '0.3';
-    tMedBtn.style.pointerEvents = hasMedia ? 'auto' : 'none';
-  }
-
-  setTimeout(() => {
-    document.getElementById('pinScience').style.left = sciPct + '%';
-    setTimeout(() => {
-      if (hasMedia) document.getElementById('pinMedia').style.left = medPct + '%';
-    }, 220);
-  }, 300);
-
-  // Divergence callout
-  const divText = el('.div-bar .div-text');
-  if (divText) {
-    const divAxisR = (window._axisRightLabel || 'beneficial');
-    const divAxisL = (window._axisLeftLabel  || 'no effect');
-    const dir = medPct > sciPct
-      ? `further toward "${divAxisR.charAt(0).toUpperCase()+divAxisR.slice(1)}"`
-      : `further toward "${divAxisL.charAt(0).toUpperCase()+divAxisL.slice(1)}"`;
-    divText.innerHTML = `<strong>+${divergence}% divergence.</strong> Media coverage sits ${divergence} points ${dir} than the quality-weighted scientific evidence currently supports.`;
-  }
-
-  // 3. AI synthesis
-  // Verdict — the practical bottom line
-  const verdictBlock = document.getElementById('verdictBlock');
-  const verdictEl    = document.getElementById('verdictText');
-  if (analysis.verdict && analysis.verdict.length > 10) {
-    verdictEl.textContent = analysis.verdict;
-    verdictBlock.style.display = 'block';
-  } else {
-    verdictBlock.style.display = 'none';
-  }
-
-  // Update study count tag
-  const studyTag = document.getElementById('studyCountTag');
-  if (studyTag) studyTag.textContent = `Quality-weighted · ${papers.length} studies`;
-
-  // Expose mediaDots globally for share card
-  if (typeof mediaDots !== 'undefined') {
-    window._mediaDots = mediaDots;
-  }
-
-  // ── Divergence Analysis ──────────────────────────────────────────
-  const da = data.divergenceAnalysis;
-  const daSection = document.getElementById('divanalysisSection');
-
-  if (da && da.headline) {
-    const ICONS = {
-      novelty_bias:            ['🔬', 'dcat-novelty'],
-      design_mismatch:         ['📊', 'dcat-mismatch'],
-      industry_signal:         ['💰', 'dcat-industry'],
-      outlet_quality:          ['📰', 'dcat-outlet'],
-      alarm_amplification:     ['🚨', 'dcat-alarm'],
-      wellness_hype:           ['✨', 'dcat-wellness'],
-      publication_bias_echo:   ['📈', 'dcat-publication'],
-      genuine_uncertainty:     ['⚖️',  'dcat-genuine'],
-      press_release_amplification: ['📢', 'dcat-press'],
-    };
-    const [icon, colorClass] = ICONS[da.category] || ['⚡', ''];
-
-    document.getElementById('divanalysisIcon').textContent = icon;
-    document.getElementById('divanalysisIcon').className   = 'divanalysis-icon ' + colorClass;
-    document.getElementById('divanalysisTitle').textContent = da.headline;
-
-    const confEl = document.getElementById('divanalysisConf');
-    confEl.textContent  = da.confidence + ' confidence';
-    confEl.className    = 'divanalysis-conf dconf-' + da.confidence;
-
-    document.getElementById('divanalysisExplain').textContent  = da.explanation;
-    document.getElementById('divanalysisCaveat').textContent   = da.caveat;
-
-    const sigContainer = document.getElementById('divanalysisSignals');
-    sigContainer.innerHTML = '';
-    (da.signals || []).slice(0, 4).forEach(sig => {
-      const d = document.createElement('div');
-      d.className   = 'divanalysis-signal';
-      d.textContent = sig;
-      sigContainer.appendChild(d);
-    });
-
-    daSection.style.display = 'block';
-  } else {
-    daSection.style.display = 'none';
-  }
-  // Store for share card
-  window._divergenceAnalysis = da || null;
-
-  // Synthesis — collapsed by default, show toggle
-  const synthesisWrap   = document.getElementById('synthesisWrap');
-  const synthesisToggle = document.getElementById('synthesisToggle');
-  if (synthesisWrap)   { synthesisWrap.classList.add('collapsed'); }
-  if (synthesisToggle) { synthesisToggle.style.display = 'block'; synthesisToggle.textContent = 'Show full synthesis ↓'; }
-
-  // Ensure synthesis text renders with proper paragraph breaks
-  let summaryHtml = analysis.summary || '—';
-  // If it's plain paragraphs separated by double newlines or <br><br>, wrap in <p> tags
-  if (!summaryHtml.includes('<p>')) {
-    summaryHtml = summaryHtml
-      .split(/\n\n|<br\s*\/?><br\s*\/?>/)
-      .map(s => s.trim())
-      .filter(s => s.length > 0)
-      .map(s => `<p>${s}</p>`)
-      .join('');
-  }
-  const aiBody = document.getElementById('aiTextBody');
-  if (aiBody) aiBody.innerHTML = summaryHtml;
-  else el('.ai-text').innerHTML = summaryHtml;
-
-  // 4. Build dynamic strip data
-  // Build stance lookup — handle all ref formats: "doi:X", "pmid:X", "paper-N", bare DOI
-  const stanceMap = {};
-  (analysis.stances || []).forEach(s => {
-    if (!s.ref && !s.doi) return;
-    const ref = (s.ref || s.doi || '').toLowerCase();
-    stanceMap[ref] = s;
-    // Also index by bare DOI/PMID for flexible matching
-    const bare = ref.replace(/^doi:|^pmid:/, '');
-    if (bare) stanceMap[bare] = s;
-  });
-
-  function findStance(p, idx) {
-    const doi  = (p.doi  || '').toLowerCase();
-    const pmid = (p.pmid || '').toString().toLowerCase();
-    return stanceMap[`doi:${doi}`]
-        || stanceMap[doi]
-        || (pmid ? stanceMap[`pmid:${pmid}`] || stanceMap[pmid] : null)
-        || stanceMap[`paper-${idx + 1}`]
-        || null;
-  }
-
-  // Map papers → scienceDots format
-  scienceDots.length = 0;
-  papers.forEach((p, idx) => {
-    const s = findStance(p, idx) || {};
-    const stance  = s.stance || 'mixed';
-    const type    = s.type   || (p.design === 'meta' ? 'meta' : p.design === 'rct' ? 'rct' : p.design === 'cohort' ? 'cohort' : 'obs');
-    const x       = stanceToX(stance, p.weight);
-    // weight: use server value if present, else derive from citations
-    const w = p.weight || (
-      (p.citations || 0) >= 400 ? 5 :
-      (p.citations || 0) >= 150 ? 4 :
-      (p.citations || 0) >= 50  ? 3 :
-      (p.citations || 0) >= 10  ? 2 : 1
-    );
-    // boost meta-analyses by 1
-    const weight = Math.min(5, type === 'meta' ? w + 1 : w);
-    scienceDots.push({
-      title:    p.title,
-      journal:  p.journal,
-      year:     p.year,
-      cites:    p.citations,
-      x,
-      weight,
-      type,
-      doi:      p.doi,
-      abstract: p.abstract,
-      note:     s.note || ''
-    });
-  });
-
-  // Map media → mediaDots format
-  mediaDots.length = 0;
-  (media || []).forEach(m => {
-    const mWeight = Math.min(4, Math.max(1, Math.round(m.weight) || 2));
-    mediaDots.push({
-      title:   m.title,
-      outlet:  m.outlet,
-      url:     m.url,
-      year:    m.year,
-      x:       mediaStanceToX(m.stance, mWeight),
-      weight:  mWeight,
-      type:    'media',
-      framing: m.framing
-    });
-  });
-
-  // Update sidebar data too
-  // (sidebar reads scienceDots/mediaDots globals, so this is automatic)
-
-  // Update consensus pin percentages used by sidebar
+  const sciPct = suppress ? null : (d.rightPct ?? 50);
+  const hasMedia = (media || []).length > 0 && mediaAnalysis?.rightPct != null;
+  const medPct = hasMedia ? mediaAnalysis.rightPct : null;
   window._sciPct = sciPct;
   window._medPct = medPct;
 
-  // 5. Show results — unlock scroll, show share bar
+  // Position = (beneficial − harmful) weighted share, centre = no effect
+  el('.pct-row.science .pct-l').textContent = suppress ? 'Science: not enough evidence' : `Science · ${esc(STATE_LABEL[state])}`;
+  el('.pct-row.science .pct-r').textContent = suppress ? '' : `position ${sciPct}/100`;
+  el('.pct-row.media .pct-l').textContent = hasMedia ? `Headlines · ${mediaAnalysis.framed} of ${mediaAnalysis.total} take a position` : 'No relevant news coverage found';
+  el('.pct-row.media .pct-r').textContent = hasMedia ? `position ${medPct}/100` : '';
+
+  setTimeout(() => {
+    document.getElementById('pinScience').style.left = (sciPct ?? 50) + '%';
+    document.getElementById('pinScience').style.opacity = suppress ? '0' : '';
+    setTimeout(() => {
+      document.getElementById('pinMedia').style.left = (medPct ?? 50) + '%';
+      document.getElementById('pinMedia').style.opacity = hasMedia ? '' : '0';
+    }, 220);
+  }, 300);
+
+  const divText = el('.div-bar .div-text');
+  const divergence = hasMedia && !suppress ? Math.abs(medPct - sciPct) : null;
+  document.getElementById('divBar').style.display = divergence != null ? 'flex' : 'none';
+  if (divText && divergence != null) {
+    const toward = medPct > sciPct ? cap(axisR) : cap(axisL);
+    divText.innerHTML = divergence < 10
+      ? `<strong>Headlines broadly match the evidence</strong> (${divergence} points apart).`
+      : `<strong>${divergence}-point gap.</strong> Headlines sit further toward “${esc(toward)}” than the quality-weighted studies.`;
+  }
+
+  // ── Verdict + synthesis ────────────────────────────────────────
+  const verdictBlock = document.getElementById('verdictBlock');
+  const verdictEl = document.getElementById('verdictText');
+  verdictEl.textContent = analysis.verdict || '';
+  verdictBlock.style.display = analysis.verdict ? 'block' : 'none';
+  document.getElementById('studyCountTag').textContent = `Quality-weighted · ${scored} studies scored of ${papers.length} screened`;
+
+  const syn = analysis.synthesis || { paragraphs: [], rows: [] };
+  const aiBody = document.getElementById('aiTextBody');
+  aiBody.innerHTML = syn.paragraphs.length
+    ? syn.paragraphs.map(p => renderParagraph(p, syn.rows || [], papersByRef)).join('')
+    : '<p>A written synthesis is not available for this result. The outcome table below shows the computed evidence.</p>';
+  aiBody.querySelectorAll('.cite').forEach(a => a.addEventListener('click', e => {
+    e.preventDefault();
+    const dot = scienceDots.find(x => x.ref === a.dataset.ref);
+    if (dot) { activeTab = 'detail'; switchTab('detail'); openSidebar(dot, 'science'); }
+  }));
+  document.getElementById('synthesisWrap').classList.add('collapsed');
+  const st = document.getElementById('synthesisToggle');
+  st.style.display = 'block'; st.textContent = 'Show full synthesis ↓';
+
+  // ── Divergence analysis ────────────────────────────────────────
+  const da = divergenceAnalysis;
+  const daSection = document.getElementById('divanalysisSection');
+  if (da && da.headline) {
+    const ICONS = { novelty_bias:'🔬', design_mismatch:'📊', industry_signal:'💰', outlet_quality:'📰', alarm_amplification:'🚨', wellness_hype:'✨', publication_bias_echo:'📈', genuine_uncertainty:'⚖️', press_release_amplification:'📢' };
+    document.getElementById('divanalysisIcon').textContent = ICONS[da.category] || '⚡';
+    document.getElementById('divanalysisTitle').textContent = da.headline;
+    const confEl = document.getElementById('divanalysisConf');
+    confEl.textContent = `${da.confidence} confidence`;
+    confEl.className = 'divanalysis-conf dconf-' + String(da.confidence).replace(/[^a-z]/g, '');
+    document.getElementById('divanalysisExplain').textContent = da.explanation;
+    document.getElementById('divanalysisCaveat').textContent = da.caveat;
+    const sig = document.getElementById('divanalysisSignals');
+    sig.innerHTML = '';
+    (da.signals || []).slice(0, 6).forEach(t => { const x = document.createElement('div'); x.className = 'divanalysis-signal'; x.textContent = t; sig.appendChild(x); });
+    daSection.style.display = 'block';
+  } else daSection.style.display = 'none';
+  window._divergenceAnalysis = da || null;
+
+  // ── Summary of findings table ──────────────────────────────────
+  const outcomes = analysis.outcomes || [];
+  const sof = document.getElementById('sofTable');
+  if (outcomes.length) {
+    sof.innerHTML = `<thead><tr><th scope="col">Outcome</th><th scope="col">Evidence</th><th scope="col">Studies</th><th scope="col">Effect</th><th scope="col">Certainty</th></tr></thead><tbody>` +
+      outcomes.map(o => {
+        const c = o.counts || {};
+        const pooled = o.pooled
+          ? `${esc(o.pooled.measure)} ${esc(o.pooled.estimate)} <span class="sub">95% CI ${esc(o.pooled.ci[0])}–${esc(o.pooled.ci[1])}${o.pooled.pi ? ` · prediction interval ${esc(o.pooled.pi[0])}–${esc(o.pooled.pi[1])}` : ''} · I² ${Math.round(o.pooled.I2 * 100)}% · k=${o.pooled.k}</span>`
+          : (o.directionalShare ? `${Math.round(o.directionalShare.beneficial * 100)}% of directional findings beneficial <span class="sub">95% interval ${Math.round(o.directionalShare.lo * 100)}–${Math.round(o.directionalShare.hi * 100)}% · not enough comparable effect sizes to pool</span>` : '—');
+        return `<tr>
+          <td>${esc(o.name)}<span class="sub">${o.type === 'harm' ? 'Harm outcome' : 'Benefit outcome'}${o.critical ? ' · primary' : ''}</span></td>
+          <td><span class="sof-state ${esc(o.evidenceState)}">${esc(STATE_LABEL[o.evidenceState] || o.evidenceState)}</span></td>
+          <td>${o.studies}${o.participants ? `<span class="sub">${esc(o.participants.toLocaleString())} participants</span>` : ''}<span class="sub">${c.beneficial || 0} beneficial · ${c.harmful || 0} harmful · ${c.null || 0} no effect · ${c.mixed || 0} mixed</span></td>
+          <td>${pooled}</td>
+          <td>${esc(o.certainty)}<span class="sub">${esc((o.certaintyReasons || []).slice(1).join('; ') || (o.certaintyReasons || [])[0] || '')}</span></td>
+        </tr>`;
+      }).join('') + '</tbody>';
+    document.getElementById('outcomesSection').style.display = 'block';
+  } else document.getElementById('outcomesSection').style.display = 'none';
+
+  // ── Methods & reproducibility ─────────────────────────────────
+  renderMethods(meta, queryMeta);
+
+  // ── Strip data ─────────────────────────────────────────────────
+  const maxW = Math.max(1e-9, ...papers.map(p => p.weight || 0));
+  scienceDots.length = 0;
+  papers.filter(p => p.position != null).forEach(p => {
+    scienceDots.push({
+      ref: p.ref, title: p.title, journal: p.journal, year: p.year, cites: p.citations,
+      doi: p.doi, pmid: p.pmid, abstract: p.abstract, x: p.position,
+      weight: Math.max(1, Math.round(5 * (p.weight || 0) / maxW)),
+      type: stripType(p.design), design: p.design, sampleSize: p.sampleSize,
+      findings: p.findings, extracted: p.extracted, direction: p.direction,
+      funding: p.funding, preprint: p.preprint, humans: p.humans, relevanceUnchecked: p.relevanceUnchecked,
+    });
+  });
+  mediaDots.length = 0;
+  (media || []).forEach(m => {
+    mediaDots.push({ title: m.title, outlet: m.outlet, url: m.url, year: m.year, x: mediaX(m), weight: Math.min(4, Math.max(1, Math.round(m.weight) || 2)), type: 'media', stance: m.stance, framing: m.framing });
+  });
+  window._mediaDots = mediaDots;
+
+  const unplotted = papers.length - scienceDots.length;
+  document.getElementById('stripTitle').textContent = `Evidence Strip · ${scienceDots.length} studies${mediaDots.length ? ' + ' + mediaDots.length + ' headlines' : ''}`;
+  const note = document.getElementById('stripNote');
+  note.style.display = unplotted > 0 ? 'flex' : 'none';
+  note.textContent = unplotted > 0 ? `${unplotted} screened paper(s) reported no result for the question outcomes (or could not be extracted) and are not plotted. Tick height = weight in the score.` : '';
+  const tMedBtn = document.getElementById('tMed');
+  tMedBtn.style.opacity = mediaDots.length ? '1' : '0.3';
+  tMedBtn.style.pointerEvents = mediaDots.length ? 'auto' : 'none';
+
   document.documentElement.classList.remove('hero-state');
   document.getElementById('resultsSections').style.display = 'block';
-  document.getElementById('shareBar').style.display = 'flex';
+  document.getElementById('shareBar').style.display = suppress ? 'none' : 'flex';
   document.getElementById('resultsSections').scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-  // Use setTimeout(0) which queues after layout/paint, more reliable than rAF
-  // for display:none → display:block transitions
   setTimeout(buildStrip, 50);
+}
+
+function renderMethods(meta, queryMeta) {
+  const body = document.getElementById('methodsBody');
+  if (!meta || !meta.flow) { document.getElementById('methodsSection').style.display = 'none'; return; }
+  const f = meta.flow;
+  const date = meta.searchedAt ? new Date(meta.searchedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+  body.innerHTML = `
+    <div class="methods-grid">
+      <div><span class="k">Retrieved</span>${f.retrieved} records → ${f.unique} unique</div>
+      <div><span class="k">Retractions excluded</span>${f.retractedExcluded}</div>
+      <div><span class="k">Mention the topic</span>${f.passedEntityGate}</div>
+      <div><span class="k">Screened relevant</span>${f.passedScreening} of ${f.selected}</div>
+      <div><span class="k">Extracted / scored</span>${f.extracted} / ${f.scored}</div>
+      <div><span class="k">Non-human excluded</span>${f.nonHumanExcluded}</div>
+      <div><span class="k">Searched</span>${esc(date)} · since ${esc(meta.yearFrom)}</div>
+      <div><span class="k">Engine</span>${esc(meta.algorithm)} · ${esc(meta.promptVersion)}</div>
+    </div>
+    <div class="methods-list">
+      <div><strong>Question (PICO):</strong> population ${esc(queryMeta.population || '—')}; intervention ${esc(queryMeta.intervention || '—')}; comparator ${esc(queryMeta.comparator || '—')}.</div>
+      ${(meta.sources || []).map(s => `<div><strong>${esc(s.name)}</strong> (${s.status === 'ok' ? s.count + ' results' : 'failed'}): <code>${esc(s.query)}</code></div>`).join('')}
+      <div><strong>Topic terms required:</strong> <code>${esc((meta.gateTerms || []).join(', '))}</code></div>
+      <div><strong>Grounding:</strong> ${meta.totalFindings - meta.ungroundedFindings} of ${meta.totalFindings} extracted findings were matched verbatim to the abstract${meta.synthesisSentencesDropped ? `; ${meta.synthesisSentencesDropped} synthesis sentence(s) with unverifiable numbers were removed` : ''}.</div>
+      <div><strong>Models:</strong> ${esc(meta.models?.reasoning || '')}, ${esc(meta.models?.classifier || '')}. Scores are computed deterministically from the extracted findings.</div>
+    </div>
+    ${(meta.warnings || []).length ? `<div class="warn-list">${meta.warnings.map(w => `<div>⚠ ${esc(w)}</div>`).join('')}</div>` : ''}`;
+  document.getElementById('methodsSection').style.display = 'block';
 }
 
 document.getElementById('searchInput').addEventListener('keydown', e => {
@@ -2867,28 +2696,31 @@ function renderHistoryDropdown() {
     if (!items.length) return;
     html += `<div class="history-group-label">${label}</div>`;
     items.forEach(e => {
-      const q = e.q.replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      html += `<div class="history-item" onclick="runHistorySearch('${e.q.replace(/'/g,"\'")}')">${q}</div>`;
+      html += `<div class="history-item" data-q="${esc(e.q)}" tabindex="0">${esc(e.q)}</div>`;
     });
   });
 
   // Older months: collapsible
   Object.entries(monthly).forEach(([month, items]) => {
-    const id = 'hgrp_' + month.replace(/\s/g,'_');
+    const id = 'hgrp_' + month.replace(/[^A-Za-z0-9]/g,'_');
     html += `<div class="history-collapsed" id="${id}_btn" onclick="toggleHistoryGroup('${id}')">
       <svg width="7" height="7" viewBox="0 0 8 8" fill="none"><path d="M2 1.5l3 2.5-3 2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      ${month} (${items.length})
+      ${esc(month)} (${items.length})
     </div>
     <div id="${id}_items" style="display:none;">`;
     items.forEach(e => {
-      const q = e.q.replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      html += `<div class="history-item" onclick="runHistorySearch('${e.q.replace(/'/g,"\'")}')">${q}</div>`;
+      html += `<div class="history-item" data-q="${esc(e.q)}" tabindex="0">${esc(e.q)}</div>`;
     });
     html += '</div>';
   });
 
   html += '<div class="history-clear" onclick="clearHistory()">Clear history</div>';
   dropdown.innerHTML = html;
+  dropdown.querySelectorAll('.history-item[data-q]').forEach(it => {
+    const go = () => runHistorySearch(it.dataset.q);
+    it.addEventListener('click', go);
+    it.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  });
 }
 
 function toggleHistoryGroup(id) {
@@ -2926,7 +2758,7 @@ function runHistorySearch(q) {
   _historyOpen = false;
   const input = document.getElementById('searchInput');
   if (input) { input.value = q; }
-  doSearch(q);
+  runSearch();
 }
 
 function toggleSynthesis() {
@@ -3065,12 +2897,13 @@ setInterval(rotateHeroLine, 7000);
 
 </script>
 <script>
-  window.BUGBOT_WEBHOOK  = 'https://bugbot-production-f901.up.railway.app/bug-report';
+  // Reports go through our server (/api/bug-report), which adds the
+  // shared secret from its environment. Never put secrets in page JS.
+  window.BUGBOT_WEBHOOK  = '/api/bug-report';
   window.BUGBOT_TRIGGER_ICON  = '?';
   window.BUGBOT_TRIGGER_COLOR = 'rgba(78,152,200,0.7)';
   window.BUGBOT_BASE_URL = 'https://bugbot-production-f901.up.railway.app';
   window.BUGBOT_PROJECT  = 'verity';
-  window.BUGBOT_SECRET   = '2977355fe1f00d72c6b1f61115b0d531';
   window.BUGBOT_POSITION = 'bottom-right';
   window.BUGBOT_THEME    = 'dark';
 
