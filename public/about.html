@@ -209,8 +209,8 @@ footer{border-top:1px solid var(--border);padding:clamp(48px,8vw,80px) var(--pad
     <div class="cover-right">
       <div class="cover-video-frame">
         <video
-          src="https://raw.githubusercontent.com/arenttodal/verity/main/verityvideo2.webm"
-          autoplay muted loop playsinline preload="auto"
+          src="/verityvideo2.webm"
+          autoplay muted loop playsinline preload="metadata"
         ></video>
       </div>
     </div>
@@ -271,7 +271,7 @@ footer{border-top:1px solid var(--border);padding:clamp(48px,8vw,80px) var(--pad
       <div class="card"><div class="card-label">The novelty bias</div><div class="card-title">New overrides consistent</div><div class="card-text">A single new study challenging established consensus gets coverage. The 47 confirming it don't. <strong>Journalism rewards novelty. Science rewards replication.</strong> The incentives run in opposite directions.</div></div>
       <div class="card"><div class="card-label">The dramatic finding bias</div><div class="card-title">Effect size gets lost</div><div class="card-text">"Doubles the risk" sounds alarming. But if baseline risk is 0.02%, doubling it is 0.04%. <strong>Relative risk without absolute risk is almost always misleading</strong> — and relative risk is what gets printed.</div></div>
       <div class="card"><div class="card-label">The industry funding problem</div><div class="card-title">Who paid for the study</div><div class="card-text">Industry-funded nutrition research is four times more likely to produce findings favourable to the funder. <strong>This rarely appears in the headline.</strong> It changes how much weight the finding deserves.</div></div>
-      <div class="card"><div class="card-label">The design hierarchy problem</div><div class="card-title">Not all studies are equal</div><div class="card-text">A meta-analysis of 40 RCTs and a single observational study of 200 people are both reported as "a study found." <strong>They are not remotely equivalent.</strong> Verity weights them accordingly.</div></div>
+      <div class="card"><div class="card-label">The design hierarchy problem</div><div class="card-title">Not all studies are equal</div><div class="card-text">A meta-analysis of 40 RCTs and a single observational study of 200 people are both reported as "a study found." <strong>They are not remotely equivalent.</strong> Verity weights them by design and sample size.</div></div>
     </div>
 
     <hr>
@@ -366,22 +366,22 @@ footer{border-top:1px solid var(--border);padding:clamp(48px,8vw,80px) var(--pad
   <div class="section-inner reveal">
     <div class="eyebrow">What it returns</div>
     <h2 class="section-title">The whole picture,<br>not the loudest study.</h2>
-    <p class="section-intro">Type any health or science question in plain language. In 20 to 30 seconds, Verity returns six things that no existing tool combines.</p>
+    <p class="section-intro">Type any health or science question in plain language. In about a minute, Verity returns six things that no existing tool combines.</p>
 
     <div class="num-list">
-      <div class="num-item"><div class="num-n">01</div><div class="num-body"><div class="num-title">Quality-weighted consensus score</div><div class="num-text">A spectrum score from Concern to Benefit, computed by a deterministic formula, not an AI opinion. Each paper is weighted by study design, bias, precision, relevance and independence.</div></div></div>
+      <div class="num-item"><div class="num-n">01</div><div class="num-body"><div class="num-title">Evidence assessed outcome by outcome</div><div class="num-text">An AI model extracts each study's result, with a verbatim quote that is checked against the abstract. A deterministic formula then scores each outcome separately on a Harmful ← No effect → Beneficial scale, weighting studies by design, sample size, relevance and risk of bias. "No effect", "studies disagree" and "not enough evidence" are reported as different answers.</div></div></div>
       <div class="num-item"><div class="num-n">02</div><div class="num-body"><div class="num-title">Two kinds of confidence</div><div class="num-text">Direction and certainty are always shown separately. A topic can have a strong consistent signal while resting on observational evidence only. Those are different things and Verity treats them as different things.</div></div></div>
-      <div class="num-item"><div class="num-n">03</div><div class="num-body"><div class="num-title">Plain-language synthesis</div><div class="num-text">Written by Claude after the scoring is done. Every number in the summary comes from the computed output. Claude cannot invent a finding that wasn't in the papers.</div></div></div>
-      <div class="num-item"><div class="num-n">04</div><div class="num-body"><div class="num-title">Evidence strip</div><div class="num-text">Every study rendered as a mark on the spectrum. Meta-analyses get wider capsule shapes; RCTs and cohort studies get thinner lines. Height reflects quality weight. The shape of the distribution often tells you more than the headline score.</div></div></div>
+      <div class="num-item"><div class="num-n">03</div><div class="num-body"><div class="num-title">Plain-language synthesis</div><div class="num-text">Written by Claude after the scoring is done, with a citation for every paragraph. Sentences containing numbers that cannot be found in the cited evidence are removed automatically.</div></div></div>
+      <div class="num-item"><div class="num-n">04</div><div class="num-body"><div class="num-title">Evidence strip</div><div class="num-text">Every study rendered as a mark on the spectrum. Meta-analyses get wider capsule shapes; RCTs and cohort studies get thinner lines. Height reflects the study's weight in the score. The shape of the distribution often tells you more than the headline score.</div></div></div>
       <div class="num-item"><div class="num-n">05</div><div class="num-body"><div class="num-title">Media divergence layer</div><div class="num-text">Five years of coverage from major outlets on the same topic, scored and placed on the same spectrum as the science. The gap between where research lands and where journalism sits becomes something you can see.</div></div></div>
-      <div class="num-item"><div class="num-n">06</div><div class="num-body"><div class="num-title">Source sidebar</div><div class="num-text">Click any mark on the evidence strip. See the abstract, quality score, framing analysis and related articles. Every number links to a real paper. The scores are computed before Claude touches the data.</div></div></div>
+      <div class="num-item"><div class="num-n">06</div><div class="num-body"><div class="num-title">Source sidebar</div><div class="num-text">Click any mark on the evidence strip. See the real abstract, the extracted finding with its verbatim quote, the design, sample size and any risk-of-bias flags. Every mark links to the paper.</div></div></div>
     </div>
 
     <hr>
 
     <div class="abox">
       <div class="abox-label">The Scoring Formula</div>
-      <div class="abox-text">w = Design Prior × Bias Weight × Precision Weight × Relevance Weight × Independence Weight<br>c = Direction × Magnitude × w<br>score = 100 × Σ(c) / Σ|w × Magnitude| → bounded [-100, +100]</div>
+      <div class="abox-text">Per study, per outcome: w = Design × Precision(n) × Relevance × Risk-of-bias × Overlap<br>position = 100 × (Σw<sub>beneficial</sub> − Σw<sub>harmful</sub>) / (Σw<sub>directional</sub> + Σw<sub>informative null</sub> + ½Σw<sub>other</sub>)<br>Where ≥3 studies report comparable effect sizes: random-effects meta-analysis (Hartung–Knapp) with a prediction interval. Certainty: GRADE-style downgrades for inconsistency, imprecision, risk of bias and indirectness.</div>
     </div>
 
     <hr>
@@ -421,11 +421,11 @@ footer{border-top:1px solid var(--border);padding:clamp(48px,8vw,80px) var(--pad
         <div class="tool-card-icon">Evidence synthesis</div>
         <div class="tool-card-title">Verity</div>
         <div class="tool-card-sub">Built specifically to answer one question: what does the accumulated peer-reviewed evidence actually show?</div>
-        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>Score from formula, not opinion.</strong> The consensus percentage is computed deterministically — Design Prior × Bias × Precision × Relevance × Independence. Claude writes prose after the score is locked.</div></div>
-        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>Study hierarchy encoded explicitly.</strong> A meta-analysis of 40 RCTs is weighted orders of magnitude higher than an observational study of 200. That difference is visible in the result.</div></div>
-        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>Current literature, every search.</strong> Papers from the last five years, pulled live from PubMed, Semantic Scholar, and OpenAlex. No training cutoff.</div></div>
-        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>Every number traces to a real paper.</strong> Click any mark on the evidence strip. See the abstract, citation count, design, and quality score. Nothing is invented.</div></div>
-        <div class="tool-stat">250M+ peer-reviewed papers · 3 independent databases · live results · no hallucination possible in the score</div>
+        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>Score from formula, not opinion.</strong> AI reads the abstracts; the score is then computed by a published, deterministic formula from those extracted findings. Claude writes prose after the score is locked.</div></div>
+        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>Study hierarchy encoded explicitly.</strong> A large meta-analysis carries several times the weight of a small observational study, and certainty starts lower when the evidence is mostly observational.</div></div>
+        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>Current literature, every search.</strong> Papers from the last 15 years (20 in deep mode), pulled live from PubMed, Europe PMC, Semantic Scholar and OpenAlex. Retracted papers are excluded.</div></div>
+        <div class="tool-flaw"><div class="flaw-dot"></div><div class="flaw-text"><strong>Every finding traces to a real paper.</strong> Click any mark on the evidence strip to see the abstract and the quoted sentence the finding was taken from. Extractions that can't be matched to the text are flagged and down-weighted.</div></div>
+        <div class="tool-stat">4 literature databases · live results · grounded extraction · AI can still make mistakes — check the sources</div>
       </div>
 
     </div>
